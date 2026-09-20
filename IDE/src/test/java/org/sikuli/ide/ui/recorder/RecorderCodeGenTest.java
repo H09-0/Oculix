@@ -51,7 +51,7 @@ class RecorderCodeGenTest {
       Field f = RecorderCodeGen.class.getDeclaredField("codePreview");
       f.setAccessible(true);
       RecorderCodePreview preview = (RecorderCodePreview) f.get(gen);
-      return (DefaultListModel<String>) ((JList<?>) preview).getModel();
+      return (DefaultListModel<String>) preview.getModel();
     } catch (Exception e) {
       throw new AssertionError("reflection failed: " + e.getMessage(), e);
     }
