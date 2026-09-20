@@ -86,7 +86,7 @@ public class PreferencesWin extends JFrame {
   private JPanel _paneTextEditing;
   private JCheckBox chkExpandTab;
   private JLabel _lblTabWidth;
-  private JComboBox _cmbFontName;
+  private JComboBox<String> _cmbFontName;
   private JLabel _lblFont;
   private JLabel _titleAppearance;
   private JLabel _titleIndentation;
@@ -94,7 +94,7 @@ public class PreferencesWin extends JFrame {
   private JLabel _lblFontSize;
   private JSpinner _spnFontSize;
   private JCheckBox chkAutoUpdate;
-  private JComboBox _cmbLang;
+  private JComboBox<Locale> _cmbLang;
   private JLabel _lblUpdates;
   private JLabel _lblLanguage;
   private JButton _btnOk;
@@ -151,7 +151,7 @@ public class PreferencesWin extends JFrame {
     _paneTextEditing = new JPanel();
     chkExpandTab = new JCheckBox();
     _lblTabWidth = new JLabel();
-    _cmbFontName = new JComboBox();
+    _cmbFontName = new JComboBox<>();
     _lblFont = new JLabel();
     _titleAppearance = compFactory.createTitle("");
     _titleIndentation = compFactory.createTitle("");
@@ -160,7 +160,7 @@ public class PreferencesWin extends JFrame {
     _spnFontSize = new JSpinner();
     JPanel paneGeneral = new JPanel();
     chkAutoUpdate = new JCheckBox();
-    _cmbLang = new JComboBox();
+    _cmbLang = new JComboBox<>();
     _lblUpdates = new JLabel();
     _lblLanguage = new JLabel();
     JPanel paneOkCancel = new JPanel();
@@ -714,7 +714,7 @@ public class PreferencesWin extends JFrame {
   private void initLangPrefs() {
     String[] SUPPORT_LOCALES = {
         "it", "es", "pt_BR", "ar", "fr", "ru", "bg", "he", "sv", "ca", "ja", "tr",
-        "da", "ko", "uk", "de", "nl", "zh_CN", "en_US", "pl", "zh_TW", "ta_IN",
+        "da", "ko", "uk", "de", "nl", "zh_CN", "en_US", "en_GB", "pl", "zh_TW", "ta_IN",
         "zh_HK", "zh_MO", "zh_SG"
     };
     Locale[] sortedLocales = new Locale[SUPPORT_LOCALES.length];
@@ -809,6 +809,7 @@ public class PreferencesWin extends JFrame {
     _txtHotkey.setEditable(true);
   }
 
+  @SuppressWarnings("deprecation")
   private void txtHotkeyKeyPressed(KeyEvent e) {
     int code = e.getKeyCode();
     // Deliberately the legacy getModifiers(), not getModifiersEx(): it yields the
@@ -830,6 +831,7 @@ public class PreferencesWin extends JFrame {
     _txtStopHotkey.setText(Key.convertKeyToText(code, mod));
   }
 
+  @SuppressWarnings("deprecation")
   private void txtStopHotkeyKeyPressed(KeyEvent e) {
     int code = e.getKeyCode();
     int mod = e.getModifiers(); // legacy convention on purpose — see txtHotkeyKeyPressed
