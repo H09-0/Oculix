@@ -544,7 +544,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
     Point p = me.getLocationOnScreen();
     Point pp = getLocationOnScreen();
     p.translate(-pp.x, -pp.y);
-    int pos = viewToModel(p);
+    int pos = viewToModel2D(p);
     Element root = getDocument().getDefaultRootElement();
     int e = root.getElementIndex(pos);
     if (e == -1) {
@@ -787,6 +787,43 @@ public class EditorPane extends JTextPane implements ThemeAware {
       StyleConstants.setComponent(attr, comp);
       d.insertString(startOff, "￼", attr);
       return true;
+    }
+    return false;
+  }
+
+  /**
+   * Replaces one thumbnail by the code it stands for, every value written
+   * out, in place, and puts the caret at the end of that code so it can be
+   * edited right away. The next reparse of the script turns the code back
+   * into a thumbnail.
+   *
+   * @return false when the button is not in this document
+   */
+  public boolean showAsText(EditorImageButton btn) {
+    if (!(getDocument() instanceof DefaultStyledDocument)) return false;
+    DefaultStyledDocument doc = (DefaultStyledDocument) getDocument();
+    int len = doc.getLength();
+    int i = 0;
+    while (i < len) {
+      Element el = doc.getCharacterElement(i);
+      int next = el.getEndOffset();
+      if (next <= i) break;
+      if (StyleConstants.ComponentElementName.equals(el.getName())
+          && StyleConstants.getComponent(el.getAttributes()) == btn) {
+        int pos = el.getStartOffset();
+        String code = btn.toEditableCode();
+        try {
+          doc.remove(pos, 1);
+          doc.insertString(pos, code, null);
+        } catch (BadLocationException e) {
+          error("showAsText: cannot replace the thumbnail at %d: %s", pos, e.getMessage());
+          return false;
+        }
+        setCaretPosition(pos + code.length());
+        requestFocusInWindow();
+        return true;
+      }
+      i = next;
     }
     return false;
   }
@@ -1207,7 +1244,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
     doc.insertString(pos - 1, _tabString, null);
   }
 
-  private Class _historyBtnClass;
+  private Class<?> _historyBtnClass;
 
   private void setHistoryCaptureButton(ButtonCapture btn) {
     _historyBtnClass = btn.getClass();
