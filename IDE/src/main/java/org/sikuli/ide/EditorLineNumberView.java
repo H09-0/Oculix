@@ -194,12 +194,12 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
     int max_h = 0;
     try {
       if (l.getElementCount() < 2) {
-        r = editorPane.modelToView(l.getEndOffset() - 1);
+        r = editorPane.modelToView2D(l.getEndOffset() - 1).getBounds();
       } else {
         for (int i = 0; i < l.getElementCount(); i++) {
           e = l.getElement(i);
           if ("component".equals(e.getName())) {
-            r1 = editorPane.modelToView(e.getStartOffset());
+            r1 = editorPane.modelToView2D(e.getStartOffset()).getBounds();
             if (max_h < r1.height) {
               max_h = r1.height;
               r = r1;
@@ -208,7 +208,7 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
         }
       }
       if (r == null) {
-        r = editorPane.modelToView(l.getEndOffset() - 1);
+        r = editorPane.modelToView2D(l.getEndOffset() - 1).getBounds();
       }
       h = (r.y - lastPos) + r.height;
     } catch (Exception ex) {
