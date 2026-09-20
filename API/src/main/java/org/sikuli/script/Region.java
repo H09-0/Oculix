@@ -3435,7 +3435,6 @@ public class Region extends Element {
    * waiting.
    */
   private <PSI> Match doFind(PSI ptn, Image img, RepeatableFind repeating) {
-    RunPulse.beat();
     Finder finder = null;
     Match match = null;
     //IScreen screen = null;
@@ -3818,7 +3817,6 @@ public class Region extends Element {
         }
         long before_find = (new Date()).getTime();
         run();
-        RunPulse.beat();
         if (ifSuccessful()) {
           return true;
         } else if (timeoutMilli < MaxTimePerScan) {
