@@ -17,6 +17,38 @@ import java.io.File;
 public class SXDialogPaneImage extends SXDialogIDE {
   public SXDialogPaneImage(Point where, Object... parms) {
     super("sxidepaneimage", where, parms);
+    fitToButton();
+  }
+
+  /** "As Pattern" becomes "As Image" once the image is one; "Optimize" is greyed out until it is. */
+  private void fitToButton() {
+    EditorImageButton btn = button();
+    if (btn == null) {
+      return;
+    }
+    if (btn.isPromotedToPattern()) {
+      drop("pattern");
+    } else {
+      drop("unpattern");
+      enable("optimize", false);
+    }
+    reRun();
+  }
+
+  /** Back to the plain image: default similarity, no offset, code written as the bare file name. */
+  public void unpattern() {
+    closeCancel();
+    EditorImageButton btn = button();
+    if (btn == null) {
+      Debug.error("SXDialogPaneImage.unpattern: no EditorImageButton in options (key 'imgBtn')");
+      return;
+    }
+    btn.asImage();
+  }
+
+  private EditorImageButton button() {
+    final Object btn = getOptions().get("imgBtn");
+    return btn instanceof EditorImageButton ? (EditorImageButton) btn : null;
   }
 
   public SXDialogPaneImage(String res, Point where, Object... parms) {
@@ -88,6 +120,22 @@ public class SXDialogPaneImage extends SXDialogIDE {
       return;
     }
     new PatternWindow(btn);
+  }
+
+  /** Shows this thumbnail as the code it stands for, ready to edit in the script. */
+  public void code() {
+    closeCancel();
+    final Object btn = getOptions().get("imgBtn");
+    if (!(btn instanceof EditorImageButton)) {
+      Debug.error("SXDialogPaneImage.code: no EditorImageButton in options (key 'imgBtn')");
+      return;
+    }
+    SikulixIDE.PaneContext context = SikulixIDE.get().getActiveContext();
+    if (context == null || context.getPane() == null) {
+      Debug.error("SXDialogPaneImage.code: no script pane to edit");
+      return;
+    }
+    context.getPane().showAsText((EditorImageButton) btn);
   }
 
   public void pattern() {
