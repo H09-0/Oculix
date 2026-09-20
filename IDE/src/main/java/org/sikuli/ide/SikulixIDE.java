@@ -169,7 +169,20 @@ public class SikulixIDE extends JFrame {
     Commons.pause(waitTime);
   }
 
+  /**
+   * Brings the window back, on the event thread whatever the caller: a
+   * script thread that shows a Swing window itself races the console being
+   * written to and can die in the layout.
+   */
   static void showAgain() {
+    if (EventQueue.isDispatchThread()) {
+      showNow();
+    } else {
+      EventQueue.invokeLater(SikulixIDE::showNow);
+    }
+  }
+
+  private static void showNow() {
     ideWindow.setVisible(true);
     PaneContext ctx = sikulixIDE.getActiveContext();
     if (ctx != null) ctx.focus();
@@ -3164,7 +3177,7 @@ public class SikulixIDE extends JFrame {
   private String findText = "";
 
   private void initEditMenu() throws NoSuchMethodException {
-    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
     _editMenu = new JMenu(_I("menuEdit"));
     _editMenu.setMnemonic(java.awt.event.KeyEvent.VK_E);
@@ -3209,7 +3222,7 @@ public class SikulixIDE extends JFrame {
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G, scMask),
             new FindAction(FindAction.FIND_NEXT)));
     findMenu.add(createMenuItem(_I("menuFindFindPrev"),
-            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G, scMask | InputEvent.SHIFT_MASK),
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_G, scMask | InputEvent.SHIFT_DOWN_MASK),
             new FindAction(FindAction.FIND_PREV)));
     _editMenu.add(findMenu);
 
@@ -3218,7 +3231,7 @@ public class SikulixIDE extends JFrame {
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_TAB, 0),
             new EditAction(EditAction.INDENT)));
     _editMenu.add(createMenuItem(_I("menuEditUnIndent"),
-            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_TAB, InputEvent.SHIFT_MASK),
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_TAB, InputEvent.SHIFT_DOWN_MASK),
             new EditAction(EditAction.UNINDENT)));
   }
 
@@ -3458,7 +3471,7 @@ public class SikulixIDE extends JFrame {
   }
 
   private void initRunMenu() throws NoSuchMethodException {
-    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
     _runMenu = new JMenu(_I("menuRun"));
     _runMenu.setMnemonic(java.awt.event.KeyEvent.VK_R);
     _runMenu.add(createMenuItem(_I("menuRunRun"),
@@ -3562,7 +3575,7 @@ public class SikulixIDE extends JFrame {
 
   //<editor-fold defaultstate="collapsed" desc="15 Init ToolMenu">
   private void initToolMenu() throws NoSuchMethodException {
-    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
     _toolMenu = new JMenu(_I("menuTool"));
     _toolMenu.setMnemonic(java.awt.event.KeyEvent.VK_T);
 
@@ -3650,7 +3663,7 @@ public class SikulixIDE extends JFrame {
     SikulixIDE.getStatusbar().resetMessage();
   }
 
-  private String getRunningJar(Class clazz) {
+  private String getRunningJar(Class<?> clazz) {
     String jarName = "";
     CodeSource codeSrc = clazz.getProtectionDomain().getCodeSource();
     if (codeSrc != null && codeSrc.getLocation() != null) {
@@ -3715,7 +3728,7 @@ public class SikulixIDE extends JFrame {
   private static String newBuildStamp = "";
 
   private void initHelpMenu() throws NoSuchMethodException {
-    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
     _helpMenu = new JMenu(_I("menuHelp"));
     _helpMenu.setMnemonic(java.awt.event.KeyEvent.VK_H);
 
@@ -4368,7 +4381,7 @@ public class SikulixIDE extends JFrame {
           String runStamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
           doBeforeRun();
           if (tray != null) {
-            tray.runStarted(contextName);
+            tray.runStarted(contextName, Thread.currentThread());
           }
           Debug.info(String.format("-------- Run started @ %s ---- %s ----", runStamp, contextName));
 
