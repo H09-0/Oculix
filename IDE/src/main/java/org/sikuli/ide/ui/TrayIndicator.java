@@ -31,10 +31,11 @@ import java.util.concurrent.TimeUnit;
 import static org.sikuli.support.ide.SikuliIDEI18N._I;
 
 /**
- * A coloured dot in the system notification area that tells whether a
- * script is running, searching, or has stopped beating, while the IDE
- * window itself is hidden behind the application under test. Its menu
- * gives the everyday IDE actions without bringing the window back.
+ * The gecko in the system notification area: its badge beats while a
+ * script runs or searches, and turns red when the script thread has been
+ * frozen on the same frame for too long, while the IDE window itself is
+ * hidden behind the application under test. Its menu gives the everyday
+ * IDE actions without bringing the window back.
  */
 public final class TrayIndicator {
 
@@ -56,9 +57,12 @@ public final class TrayIndicator {
   private final TrayState state;
   private final Actions actions;
   private final Map<TrayState.State, BufferedImage> images = new EnumMap<>(TrayState.State.class);
+  private final Map<TrayState.State, BufferedImage> beats = new EnumMap<>(TrayState.State.class);
   private final ScheduledExecutorService watchdog;
   private MenuItem stopItem;
+  private volatile Thread scriptThread;
   private TrayState.State shown;
+  private boolean beat;
   private boolean stuckReported;
   private boolean hiddenReported;
 
@@ -102,8 +106,9 @@ public final class TrayIndicator {
     return tray;
   }
 
-  public void runStarted(String script) {
-    RunPulse.beat();
+  /** A run begins on the given thread; the watchdog watches that thread from now on. */
+  public void runStarted(String script, Thread thread) {
+    scriptThread = thread;
     state.runStarted(script);
     stuckReported = false;
     tick();
@@ -111,6 +116,7 @@ public final class TrayIndicator {
 
   public void runEnded() {
     state.runEnded();
+    scriptThread = null;
     tick();
   }
 
@@ -195,18 +201,29 @@ public final class TrayIndicator {
     return item;
   }
 
+  /**
+   * One look at the script thread: its state and its top frame, read from
+   * outside, which works even when the thread is frozen in native code.
+   */
   private void tick() {
-    TrayState.State now = state.state(RunPulse.lastBeat(), RunPulse.isSearching());
-    long silent = state.silentSeconds(RunPulse.lastBeat());
+    TrayState.State now = state.observe(scriptThread, RunPulse.isSearching());
+    long frozen = state.frozenSeconds();
+    String where = state.where();
     EventQueue.invokeLater(() -> {
-      if (now != shown || now == TrayState.State.STUCK) {
+      boolean alive = now == TrayState.State.RUNNING || now == TrayState.State.SEARCHING;
+      if (alive) {
+        beat = !beat;
+        icon.setImage(beat ? beats.get(now) : images.get(now));
+      } else if (now != shown || now == TrayState.State.STUCK) {
         icon.setImage(images.get(now));
-        icon.setToolTip(tooltip(now, silent));
-        shown = now;
       }
+      if (now != shown || now == TrayState.State.STUCK) {
+        icon.setToolTip(tooltip(now, frozen, where));
+      }
+      shown = now;
       if (now == TrayState.State.STUCK && !stuckReported) {
         stuckReported = true;
-        icon.displayMessage("OculiX", tooltip(now, silent), TrayIcon.MessageType.WARNING);
+        icon.displayMessage("OculiX", tooltip(now, frozen, where), TrayIcon.MessageType.WARNING);
       }
       if (stopItem != null) {
         stopItem.setEnabled(state.isRunning());
@@ -214,28 +231,47 @@ public final class TrayIndicator {
     });
   }
 
-  private String tooltip(TrayState.State s, long silent) {
+  private String tooltip(TrayState.State s, long frozen, String where) {
     switch (s) {
       case RUNNING:
         return _I("trayRunning", state.script());
       case SEARCHING:
         return _I("traySearching", state.script());
       case STUCK:
-        return _I("trayStuck", state.script(), silent);
+        return _I("trayStuck", state.script(), frozen, where);
       default:
         return _I("trayIdle");
     }
   }
 
-  /** The gecko head at rest, and the same head with a coloured badge per state. */
+  /**
+   * The gecko head while nothing runs; once a script runs, a full-size dot
+   * in the colour of the state, with a lighter twin so the live states beat.
+   */
   private void paintImages(Dimension size) {
     int w = Math.max(16, size.width);
     int h = Math.max(16, size.height);
-    BufferedImage gecko = gecko(w, h);
-    images.put(TrayState.State.IDLE, gecko);
-    images.put(TrayState.State.RUNNING, badged(gecko, OculixColors.OX_LIME_400));
-    images.put(TrayState.State.SEARCHING, badged(gecko, OculixColors.OX_CYAN_500));
-    images.put(TrayState.State.STUCK, badged(gecko, new Color(0xFF, 0x3B, 0x3B)));
+    images.put(TrayState.State.IDLE, gecko(w, h));
+    images.put(TrayState.State.RUNNING, dot(w, h, OculixColors.OX_LIME_400));
+    images.put(TrayState.State.SEARCHING, dot(w, h, OculixColors.OX_CYAN_500));
+    images.put(TrayState.State.STUCK, dot(w, h, new Color(0xFF, 0x3B, 0x3B)));
+    beats.put(TrayState.State.RUNNING, dot(w, h, lighter(OculixColors.OX_LIME_400)));
+    beats.put(TrayState.State.SEARCHING, dot(w, h, lighter(OculixColors.OX_CYAN_500)));
+  }
+
+  private static BufferedImage dot(int w, int h, Color color) {
+    BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g = img.createGraphics();
+    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    g.setColor(color);
+    g.fillOval(1, 1, w - 2, h - 2);
+    g.dispose();
+    return img;
+  }
+
+  private static Color lighter(Color c) {
+    return new Color(c.getRed() + (255 - c.getRed()) / 2, c.getGreen() + (255 - c.getGreen()) / 2,
+        c.getBlue() + (255 - c.getBlue()) / 2);
   }
 
   private static BufferedImage gecko(int w, int h) {
@@ -251,24 +287,6 @@ public final class TrayIndicator {
       g.setColor(new Color(0x8A, 0x8F, 0x98));
       g.fillOval(1, 1, w - 2, h - 2);
     }
-    g.dispose();
-    return img;
-  }
-
-  private static BufferedImage badged(BufferedImage base, Color color) {
-    int w = base.getWidth();
-    int h = base.getHeight();
-    BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-    Graphics2D g = img.createGraphics();
-    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    g.drawImage(base, 0, 0, null);
-    int d = Math.max(6, w * 7 / 16);
-    int x = w - d;
-    int y = h - d;
-    g.setColor(new Color(0x0B, 0x10, 0x26));
-    g.fillOval(x - 1, y - 1, d + 2, d + 2);
-    g.setColor(color);
-    g.fillOval(x, y, d, d);
     g.dispose();
     return img;
   }
