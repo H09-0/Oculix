@@ -843,6 +843,7 @@ public class OculixSidebar extends JPanel {
      *  translate-bundles.py script + en_US source + ta_IN RaiMan-curated. */
     private static final java.util.List<java.util.Locale> AVAILABLE = java.util.List.of(
         new java.util.Locale("en", "US"),
+        new java.util.Locale("en", "GB"),
         new java.util.Locale("fr"),
         new java.util.Locale("de"),
         new java.util.Locale("es"),
@@ -876,7 +877,7 @@ public class OculixSidebar extends JPanel {
     private static final java.util.LinkedHashMap<String, String[]> REGIONS = new java.util.LinkedHashMap<>();
     static {
       REGIONS.put("languageRegionLatinEurope", new String[]{
-          "en", "en_US", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca"});
+          "en", "en_US", "en_GB", "fr", "de", "es", "it", "nl", "pt", "pt_BR", "sv", "da", "ca"});
       REGIONS.put("languageRegionSlavicEurope", new String[]{"pl", "ru", "uk", "bg", "tr"});
       REGIONS.put("languageRegionMiddleEast", new String[]{"he", "ar"});
       REGIONS.put("languageRegionEastAsia", new String[]{
