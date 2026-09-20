@@ -15,8 +15,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for the global hotkey binding rules introduced with #335.
  *
  * <p>The NEEDS_MODIFIER cases are the important ones: they are what stops a user
- * from reproducing #449 by hand through the Preferences dialog.
+ * from reproducing #449 by hand through the Preferences dialog. The legacy
+ * {@code *_MASK} values are used on purpose: that is the convention the stored
+ * preferences carry, and the validator must accept both.
  */
+@SuppressWarnings("deprecation")
 class HotkeyBindingValidatorTest {
 
   private static final int SHIFT_META = KeyEvent.SHIFT_MASK + KeyEvent.META_MASK; // legacy, 5
