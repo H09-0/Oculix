@@ -11,7 +11,6 @@ import org.sikuli.script.Pattern;
 import org.sikuli.support.Commons;
 import org.sikuli.support.gui.SXDialog;
 import org.sikuli.support.gui.SXDialogPaneImage;
-import org.sikuli.support.gui.SXDialogPaneImageMenu;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -144,23 +143,11 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return false;
   }
 
-  SXDialogPaneImageMenu popmenu = null;
-
   private void handlePopup(MouseEvent me) {
-    if (closeIfVisible(popmenu)) {
+    if (closeIfVisible(popwin)) {
       return;
     }
-    closeIfVisible(popwin);
-    if (me == null) {
-      handlePreview();
-    } else {
-      Point where = getLocationOnScreen();
-      where.y += MAXHEIGHT + 10;
-
-      popmenu = new SXDialogPaneImageMenu(where,
-          new String[]{"image", "imgBtn"}, options.get(IButton.FILE), this);
-      popmenu.run();
-    }
+    handlePreview();
   }
 
   private SXDialogPaneImage popwin = null;
@@ -372,6 +359,30 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return (String) options.get(IButton.TEXT);
   }
 
+  /**
+   * The code of this image with every value written out, similarity
+   * included even at its default, so that a person can edit it in place.
+   */
+  public String toEditableCode() {
+    if (options == null || options.get(IButton.FILE) == null) {
+      return toString();
+    }
+    return editableCode(((File) options.get(IButton.FILE)).getName(), _exact, _similar, _offset);
+  }
+
+  static String editableCode(String imgName, boolean exact, double similarity, Location offset) {
+    StringBuilder sb = new StringBuilder("Pattern(\"").append(imgName).append("\")");
+    if (exact) {
+      sb.append(".exact()");
+    } else {
+      sb.append(String.format(java.util.Locale.ENGLISH, ".similar(%.2f)", similarity));
+    }
+    if (offset != null && (offset.x != 0 || offset.y != 0)) {
+      sb.append(".targetOffset(").append(offset.x).append(",").append(offset.y).append(")");
+    }
+    return sb.toString();
+  }
+
   public String info() {
     if (options == null || options.get(IButton.FILE) == null) {
       return "";
@@ -530,6 +541,11 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
 
   public PatternWindow getWindow() {
     return null;
+  }
+
+  /** The opposite of {@link #promoteToPattern()}: the image goes back to its bare file name in the code. */
+  public void asImage() {
+    resetParameters();
   }
 
   /**
