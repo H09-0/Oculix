@@ -277,6 +277,23 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
     return "Pattern(\"" + imgName + "\")" + mods;
   }
 
+  @Override
+  public boolean isPromotedToPattern() {
+    return toString().startsWith("Pattern(");
+  }
+
+  @Override
+  public String toEditableCode() {
+    if (_imgFilename == null) {
+      return super.toEditableCode();
+    }
+    String code = editableCode(new File(_imgFilename).getName(), _exact, _similarity, _offset);
+    if (_resizeFactor > 0 && _resizeFactor != 1f) {
+      code = code.replace("\")", "\")" + String.format(Locale.ENGLISH, ".resize(%.2f)", _resizeFactor));
+    }
+    return code;
+  }
+
   public void reloadImage() {
     Image.reload(_image.getFilename());
     setImage(_imgFilename);
@@ -325,6 +342,17 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
     setImage(_imgFilenameSaved);
     setParameters(_exactSaved, _similaritySaved, DEFAULT_NUM_MATCHES);
     setTargetOffset(_offsetSaved);
+  }
+
+  @Override
+  public void asImage() {
+    _exact = false;
+    _similarity = DEFAULT_SIMILARITY;
+    _offset = new Location(0, 0);
+    _resizeFactor = 1f;
+    _mask = null;
+    setButtonText();
+    repaint();
   }
 
   public boolean setExact(boolean exact) {
