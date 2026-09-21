@@ -54,6 +54,7 @@ public class SikuliIDEI18N {
    public static boolean setLocale(Locale locale){
       try{
          i18nRB = ResourceBundle.getBundle("i18n/IDE",locale, SHARED_REGIONS);
+         curLocale = locale;
       }
       catch(MissingResourceException e){
          Debug.error("SikuliIDEI18N: no locale for " + locale);
