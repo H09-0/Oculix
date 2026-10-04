@@ -57,7 +57,7 @@
     <sikulixjythonversion>2.7.4</sikulixjythonversion>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
 -->
-    <apertix.opencv.version>4.10.0-3</apertix.opencv.version>
+    <apertix.opencv.version>4.14.0-0</apertix.opencv.version>
     <legerix.version>5.5.0-8</legerix.version>
     <octachorix.version>1.0.0</octachorix.version>
     <timestamp>${maven.build.timestamp}</timestamp>
@@ -98,14 +98,16 @@
            https://github.com/oculix-org/tigervnc-java-oculix -->
     </dependency>
     <dependency>
-      <groupId>io.github.julienmerconsulting.apertix</groupId>
-      <artifactId>opencv</artifactId>
+      <groupId>io.github.oculix-org</groupId>
+      <artifactId>apertix</artifactId>
       <version>${apertix.opencv.version}</version>
-      <!-- https://github.com/julienmerconsulting/Apertix
-           4.10.0-3 ships dual Linux native builds: modern (glibc >= 2.38) at
-           linux-{x86-64,aarch64}/ and legacy (manylinux_2_28, glibc >= 2.28)
-           at linux-{x86-64,aarch64}-legacy/. Selection is done at runtime
-           in Commons.loadOpenCV() based on detected glibc version. -->
+      <!-- https://github.com/oculix-org/Apertix
+           OpenCV 4.14.0 Java bindings with natives for Windows (x86, x86_64),
+           macOS (x86_64, arm64) and Linux. Linux ships dual native builds:
+           modern (glibc >= 2.38) at linux-{x86-64,aarch64}/ and legacy
+           (manylinux_2_28, glibc >= 2.28) at linux-{x86-64,aarch64}-legacy/.
+           Selection is done at runtime in Commons.loadOpenCV() based on
+           detected glibc version. -->
     </dependency>
     <dependency>
       <groupId>commons-cli</groupId>
