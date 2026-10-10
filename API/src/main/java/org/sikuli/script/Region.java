@@ -22,6 +22,7 @@ import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -2976,7 +2977,6 @@ public class Region extends Element {
   }
 
   private <PSI> RepeatableFind existsStoppableInit(PSI target) {
-    lastMatch = null;
     RepeatableFind rf = doExistsInit(target);
     rf.resetShouldStop();
     return rf;
@@ -3002,23 +3002,42 @@ public class Region extends Element {
   }
 
   private Match doExists(RepeatableFind rf, double timeout) {
+    return doExists(rf, timeout, false);
+  }
+
+  /**
+   * The search behind exists() and behind every thread of waitAnyList. The match found is kept
+   * in a local until it is returned: a thread never reads it back from a field another thread
+   * can overwrite (#485). Called alone, the match goes to lastMatch; called concurrently, it is
+   * added to lastMatchList and lastMatch is left to the caller that owns the whole search.
+   *
+   * @param rf         the prepared repeatable find
+   * @param timeout    seconds to wait, 0 for one search
+   * @param concurrent true when called from a waitAnyList thread
+   * @return the match, null if not found
+   */
+  private Match doExists(RepeatableFind rf, double timeout, boolean concurrent) {
     Image img = rf._image;
     String targetStr = img.getName();
     if (!(timeout > 0)) {
       log(logLevel, "exists: waiting %.1f secs for %s to appear in %s", timeout, targetStr, this.toStringShort());
     }
     if (rf.repeat(timeout)) {
-      lastMatch = rf.getMatch();
-      //lastMatch.setImage(img);
+      Match found = rf.getMatch();
       if (isOtherScreen()) {
-        lastMatch.setOtherScreen();
+        found.setOtherScreen();
       } else if (img != null) {
-        img.setLastSeen(lastMatch.getRect(), lastMatch.getScore());
+        img.setLastSeen(found.getRect(), found.getScore());
+      }
+      if (concurrent) {
+        lastMatchList.add(found);
+      } else {
+        lastMatch = found;
       }
       if (!(timeout > 0)) {
-        log(logLevel, "exists: %s has appeared (%s)", targetStr, lastMatch);
+        log(logLevel, "exists: %s has appeared (%s)", targetStr, found);
       }
-      return lastMatch;
+      return found;
     }
     if (!(timeout > 0)) {
       log(logLevel, "exists: %s did not appear [%d msec]", targetStr, new Date().getTime() - lastFindTime);
@@ -3434,6 +3453,21 @@ public class Region extends Element {
    * Match doFind( Pattern/String/Image ) finds the given pattern on the screen and returns the best match without
    * waiting.
    */
+  /**
+   * Hands the stop flag of a repeated search to its Finder, so that a thread of waitAnyList told
+   * to stop leaves the cascade at the next mode instead of running it to the end.
+   *
+   * @param finder    the Finder about to search
+   * @param repeating the repeat loop owning the search, null for a one-shot find
+   * @return the same Finder
+   */
+  private Finder stoppable(Finder finder, RepeatableFind repeating) {
+    if (finder != null && repeating != null) {
+      finder.setStopFlag(repeating.shouldStop::get);
+    }
+    return finder;
+  }
+
   private <PSI> Match doFind(PSI ptn, Image img, RepeatableFind repeating) {
     Finder finder = null;
     Match match = null;
@@ -3454,6 +3488,7 @@ public class Region extends Element {
       simg = captureSelf(this);
       finder.setScreenImage(simg);
       finder.setRepeating();
+      finder.setStopFlag(repeating.shouldStop::get);
       if (Settings.FindProfiling) {
         Debug.logp("[FindProfiling] Region.doFind repeat: %d msec",
             new Date().getTime() - lastSearchTimeRepeat);
@@ -3470,7 +3505,7 @@ public class Region extends Element {
         } else {
           if (img.isValid()) {
             lastSearchTime = (new Date()).getTime();
-            finder = checkLastSeenAndCreateFinder(img, findTimeout, null);
+            finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, null), repeating);
             if (!finder.hasNext()) {
               runFinder(finder, img);
             }
@@ -3508,7 +3543,7 @@ public class Region extends Element {
       } else if (ptn instanceof Pattern) {
         if (img.isValid()) {
           lastSearchTime = (new Date()).getTime();
-          finder = checkLastSeenAndCreateFinder(img, findTimeout, (Pattern) ptn);
+          finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, (Pattern) ptn), repeating);
           if (!finder.hasNext()) {
             runFinder(finder, ptn);
           }
@@ -3516,7 +3551,7 @@ public class Region extends Element {
       } else if (ptn instanceof Image || ptn instanceof ScreenImage) {
         if (img.isValid()) {
           lastSearchTime = (new Date()).getTime();
-          finder = checkLastSeenAndCreateFinder(img, findTimeout, null);
+          finder = stoppable(checkLastSeenAndCreateFinder(img, findTimeout, null), repeating);
           if (!finder.hasNext()) {
             runFinder(finder, img);
           }
@@ -3822,6 +3857,9 @@ public class Region extends Element {
         } else if (timeoutMilli < MaxTimePerScan) {
           return false;
         }
+        if (null != shouldStop && shouldStop.get()) {
+          break;
+        }
         long after_find = (new Date()).getTime();
         if (after_find - before_find < MaxTimePerScan) {
           try {
@@ -3951,7 +3989,7 @@ public class Region extends Element {
     public void run() {
       if (waitTime > 0) {
         rfArray[subN] = reg.existsStoppableInit(target);
-        mArray[subN] = reg.doExists(rfArray[subN], waitTime);
+        mArray[subN] = reg.doExists(rfArray[subN], waitTime, true);
       } else {
         try {
           mArray[subN] = reg.findInImage(base, target);
@@ -3987,6 +4025,17 @@ public class Region extends Element {
     }
   }
 
+  /**
+   * One search thread per target on this region. With a timeout (waitAnyList) the call returns
+   * as soon as one thread has found its target; the others are told to stop and leave the cascade
+   * at their next mode, on their own, after the call has returned. Without a timeout (findAnyList)
+   * every thread searches the same capture once and the call waits for all of them. Each thread
+   * adds its match to lastMatchList, a fresh list per call; only this thread sets lastMatch (#485).
+   *
+   * @param time  seconds to wait, 0 for one search on one capture
+   * @param pList the targets: Pattern, String or Image
+   * @return the matches found when the call returned, in target order, with their index set
+   */
   private List<Match> findAnyCollect(double time, List<Object> pList) {
     List<Match> mList = new ArrayList<Match>();
     if (pList == null) {
@@ -3995,6 +4044,7 @@ public class Region extends Element {
     Match[] mArray = new Match[pList.size()];
     RepeatableFind[] rfArray = new RepeatableFind[pList.size()];
     SubFindRun[] theSubs = new SubFindRun[pList.size()];
+    lastMatchList = new CopyOnWriteArrayList<>();
     int nobj = 0;
     // v5 (#444): captureSelf routes through PrintWindow when applicable.
     // Old line: ScreenImage base = getScreen().capture(this);
@@ -4004,7 +4054,7 @@ public class Region extends Element {
 
       if (obj instanceof Pattern || obj instanceof String || obj instanceof Image) {
         theSubs[nobj] = new SubFindRun(time, mArray, rfArray, nobj, base, obj, this);
-        new Thread(theSubs[nobj]).start();
+        new Thread(theSubs[nobj], "SubFindRun-" + nobj).start();
       }
       nobj++;
     }
@@ -4012,29 +4062,43 @@ public class Region extends Element {
     if (time > 0) {
       boolean any = false;
       while (!any) {
-        any = false;
         for (SubFindRun sub : theSubs) {
-          if (sub.hasFinished()) {
+          if (sub != null && sub.hasFinished()) {
             any = true;
+            break;
+          }
+        }
+        if (!any) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             break;
           }
         }
       }
       for (SubFindRun sub : theSubs) {
-        sub.shouldStop();
+        if (sub != null) {
+          sub.shouldStop();
+        }
       }
+      Debug.log(logLevel, "waitAnyCollect: first SubFindRun finished, the others stop at their next mode");
     } else {
       boolean all = false;
       while (!all) {
         all = true;
         for (SubFindRun sub : theSubs) {
-          all &= sub.hasFinished();
+          all &= sub == null || sub.hasFinished();
+        }
+        if (!all) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+          }
         }
       }
-    }
-    if (time > 0)
-      Debug.log(logLevel, "waitAnyCollect: first SubFindRun finished");
-    else {
       Debug.log(logLevel, "findAnyCollect: all SubFindRuns finished");
     }
     nobj = 0;
@@ -4042,10 +4106,13 @@ public class Region extends Element {
       if (match != null) {
         match.setIndex(nobj);
         mList.add(match);
-      } else {
       }
       nobj++;
     }
+    if (!(time > 0)) {
+      lastMatchList = new CopyOnWriteArrayList<>(mList);
+    }
+    lastMatch = mList.isEmpty() ? null : mList.get(0);
     return mList;
   }
 
