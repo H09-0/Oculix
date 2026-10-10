@@ -45,6 +45,19 @@ public class Finder implements Iterator<Match> {
     Debug.logx(level, me + message, args);
   }
 
+  /**
+   * Makes the searches of this Finder abandonable: once the supplier says true, the cascade stops
+   * at the next mode boundary instead of running every degraded mode and every scale. Used by
+   * waitAnyList, whose other threads are told to stop as soon as one target is found.
+   *
+   * @param stop true when the search is no longer wanted
+   * @return this Finder
+   */
+  public Finder setStopFlag(java.util.function.BooleanSupplier stop) {
+    _findInput.setStop(stop);
+    return this;
+  }
+
   //<editor-fold defaultstate="collapsed" desc="Constructors">
   protected Finder() {
     resetFindChanges();
@@ -923,7 +936,11 @@ public class Finder implements Iterator<Match> {
       // ========================================================
 
       // --- MODE 2 : DPI-aware scale ---
-      if (findResult == null && !findInput.isFindAll()) {
+      if (findResult == null && findInput.stopRequested()) {
+        log.trace("doFindImage: stop requested after Mode 1, %d msec", new Date().getTime() - begin_find);
+        return null;
+      }
+      if (findResult == null && !findInput.isFindAll() && !findInput.hasMask()) {
         double dpiRatio = getDpiRatio(findInput);
         if (dpiRatio != 1.0) {
           begin_lap = new Date().getTime();
@@ -946,6 +963,10 @@ public class Finder implements Iterator<Match> {
 
       // --- MODE 3: tolerant match (Gaussian blur) ---
       double originalScore = findInput.getScore();
+      if (findResult == null && findInput.stopRequested()) {
+        log.trace("doFindImage: stop requested after Mode 2, %d msec", new Date().getTime() - begin_find);
+        return null;
+      }
       if (findResult == null && !findInput.isFindAll() && !findInput.hasMask()) {
         begin_lap = new Date().getTime();
         Mat whatBlur = new Mat();
@@ -964,6 +985,10 @@ public class Finder implements Iterator<Match> {
       }
 
       // --- MODE 4 : smart match (grayscale) ---
+      if (findResult == null && findInput.stopRequested()) {
+        log.trace("doFindImage: stop requested after Mode 3, %d msec", new Date().getTime() - begin_find);
+        return null;
+      }
       if (findResult == null && !findInput.isFindAll() && !findInput.isGray() && !findInput.hasMask()) {
         begin_lap = new Date().getTime();
         Mat whatGray = new Mat();
@@ -1000,6 +1025,11 @@ public class Finder implements Iterator<Match> {
         double[] commonScales = {1.25, 1.5, 1.75, 2.0, 0.8, 0.67, 0.5};
         begin_lap = new Date().getTime();
         for (double scale : commonScales) {
+          if (findInput.stopRequested()) {
+            log.trace("doFindImage: stop requested in Mode 5 before scale %.2f, %d msec", scale,
+                new Date().getTime() - begin_find);
+            return null;
+          }
           Mat mScaled = new Mat();
           Imgproc.resize(findInput.getTarget(), mScaled, new Size(),
               scale, scale, Imgproc.INTER_LINEAR);
@@ -1318,6 +1348,23 @@ public class Finder implements Iterator<Match> {
 
     static {
       Finder2.init();
+    }
+
+    private java.util.function.BooleanSupplier stop = () -> false;
+
+    /**
+     * Lets the search be abandoned between two modes of the cascade: the supplier is read before
+     * each degraded mode and each scale of the multi-scale mode.
+     *
+     * @param stop true when the search is no longer wanted
+     */
+    protected void setStop(java.util.function.BooleanSupplier stop) {
+      this.stop = stop == null ? () -> false : stop;
+    }
+
+    /** @return true when the caller no longer wants this search to go on */
+    protected boolean stopRequested() {
+      return stop.getAsBoolean();
     }
 
     private Mat mask = new Mat();
