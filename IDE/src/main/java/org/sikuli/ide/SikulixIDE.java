@@ -737,6 +737,12 @@ public class SikulixIDE extends JFrame {
     if (tray != null) {
       tray.relabel();
     }
+    if (messages != null) {
+      messages.relabel();
+    }
+    if (messageArea != null && messageArea.getTabCount() > 0) {
+      messageArea.setTitleAt(0, _I("paneMessage").toUpperCase(java.util.Locale.ROOT));
+    }
     ideContainer.revalidate();
     ideContainer.repaint();
   }
