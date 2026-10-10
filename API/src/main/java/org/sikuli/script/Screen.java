@@ -111,6 +111,10 @@ public class Screen extends Region implements IScreen, EventObserver {
     }
   }
 
+  /**
+   * detect the monitors again and rebuild the Screen objects<br>
+   * to be used after a monitor was plugged in or out while the script is running
+   */
   public static void resetScreens() {
     // Reset ScreenDevice state as well, otherwise ScreenDevice.initDevices()
     // early-returns because its static mainMonitor is still > -1, and the
@@ -191,6 +195,9 @@ public class Screen extends Region implements IScreen, EventObserver {
     return theScreen;
   }
 
+  /**
+   * re-read the bounds of this screen from the monitor it stands for
+   */
   public void reset() {
     setup(curID);
   }
@@ -203,6 +210,12 @@ public class Screen extends Region implements IScreen, EventObserver {
     h = (int) bounds.getHeight();
   }
 
+  /**
+   * the shared Screen object of a monitor, without creating a new one
+   *
+   * @param id screen number as OculiX counts them, 0 first
+   * @return the Screen, or Screen 0 if the id is out of range (with an error log)
+   */
   public static Screen as(int id) {
     if (primaryScreen < 0) {
       initScreens();
@@ -353,6 +366,11 @@ public class Screen extends Region implements IScreen, EventObserver {
     return curID;
   }
 
+  /**
+   * the screen number as a String
+   *
+   * @return the id
+   */
   public String getIDString() {
     return "" + getID();
   }
@@ -390,11 +408,26 @@ public class Screen extends Region implements IScreen, EventObserver {
     return Region.create(loc.copyTo(this), width, height);
   }
 
+  /**
+   * a copy of this screen as a Region on this screen
+   *
+   * @param reg ignored
+   * @return the new Region
+   */
   @Override
   public Region newRegion(Region reg) {
     return copyTo(this);
   }
 
+  /**
+   * create a region on this screen, see {@link #newRegion(Location, int, int)}
+   *
+   * @param x position of the top-left corner
+   * @param y position of the top-left corner
+   * @param w width
+   * @param h height
+   * @return the new Region
+   */
   @Override
   public Region newRegion(int x, int y, int w, int h) {
     return newRegion(new Location(x, y), w, h);
@@ -701,6 +734,13 @@ public class Screen extends Region implements IScreen, EventObserver {
     return element.setOtherScreen(this);
   }
 
+  /**
+   * create a location bound to this screen
+   *
+   * @param x horizontal position
+   * @param y vertical position
+   * @return the new Location
+   */
   @Override
   public Location newLocation(int x, int y) {
     return new Location(x, y).setOtherScreen(this);
