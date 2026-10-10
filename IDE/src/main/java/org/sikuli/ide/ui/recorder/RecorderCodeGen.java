@@ -163,11 +163,13 @@ class RecorderCodeGen {
     if (isRF()) {
       addLine("*** Settings ***");
       addLine("Library    SikuliLibrary");
+      // SikuliLibrary starts its Java server on import and never stops it by itself.
+      addLine("Suite Teardown    Stop Remote Server");
       addLine("Documentation    Recorded by OculiX Modern Recorder");
       addLine("");
       addLine("*** Test Cases ***");
       addLine("Recorded Test");
-      headerLineCount = 6;
+      headerLineCount = 7;
     } else if (isJava()) {
       addLine("import org.sikuli.script.*;");
       addLine("import org.sikuli.basics.Settings;");
