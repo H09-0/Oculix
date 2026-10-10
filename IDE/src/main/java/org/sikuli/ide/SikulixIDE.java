@@ -1028,7 +1028,7 @@ public class SikulixIDE extends JFrame {
     return sub;
   }
 
-  static SikuliIDEStatusBar getStatusbar() {
+  public static SikuliIDEStatusBar getStatusbar() {
     return sikulixIDE._status;
   }
 
