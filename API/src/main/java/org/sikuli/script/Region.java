@@ -3091,7 +3091,10 @@ public class Region extends Element {
   }
 
   /**
-   * waits until target vanishes or timeout (in seconds) is passed
+   * waits until target vanishes or timeout (in seconds) is passed.
+   * <p>Each turn is a fresh exists: the lastSeen area first, the whole region only
+   * when the target is not there, so a target that stays costs a few ms per turn,
+   * and a target that moved inside the region is not reported as vanished.</p>
    *
    * @param <PSI>   Pattern, String or Image
    * @param target  Pattern, String or Image
@@ -3108,14 +3111,42 @@ public class Region extends Element {
     }
     if (null != response && response) {
       log(logLevel, "waiting for " + targetStr + " to vanish within %.1f secs", timeout);
-      if (rv.repeat(timeout)) {
-        log(logLevel, "%s vanished", targetStr);
-        return true;
+      long end = new Date().getTime() + (long) (timeout * 1000);
+      long scan = (long) (1000.0 / waitScanRate);
+      while (true) {
+        if (existsSilently(target) == null) {
+          log(logLevel, "%s vanished", targetStr);
+          return true;
+        }
+        long left = end - new Date().getTime();
+        if (left <= 0) {
+          break;
+        }
+        try {
+          Thread.sleep(Math.min(scan, left));
+        } catch (InterruptedException e) {
+          return false;
+        }
       }
       log(logLevel, "%s did not vanish before timeout", targetStr);
       return false;
     }
     return false;
+  }
+
+  // exists(target, 0) without its log lines and without touching lastMatch.
+  private <PSI> Match existsSilently(PSI target) {
+    RepeatableFind rf = doExistsInit(target);
+    if (!rf.repeat(0)) {
+      return null;
+    }
+    Match match = rf.getMatch();
+    if (isOtherScreen()) {
+      match.setOtherScreen();
+    } else if (rf._image != null) {
+      rf._image.setLastSeen(match.getRect(), match.getScore());
+    }
+    return match;
   }
 
   /**
