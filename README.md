@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="IDE/src/main/resources/icons/gecko_cyclope_hero.png" width="180" alt="OculiX gecko mascot"/>
+<img src=".github/assets/gecko-i-love-sikulix.png" width="320" alt="The OculiX gecko, waving, in an I love SikuliX t-shirt"/>
 
 # OculiX
 
