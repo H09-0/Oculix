@@ -18,14 +18,8 @@ import static org.sikuli.support.ide.SikuliIDEI18N._I;
 public class EditorLineNumberView extends JComponent implements MouseListener {
 
   private static ImageIcon ERROR_ICON = SikulixIDE.getIconResource("/icons/error_icon.gif");
-  // This is for the border to the right of the line numbers.
-  // There's probably a UIDefaults value that could be used for this.
-  private static final Color BORDER_COLOR = new Color(155, 155, 155);
-  private static Color FG_COLOR = Color.GRAY;
-  private static Color BG_COLOR = new Color(241, 241, 241);
-  private static Color selBG_COLOR = new Color(220, 220, 220);
   private static final int WIDTH_TEMPLATE = 999;
-  private static final int MARGIN = 5;
+  private static final int MARGIN = com.formdev.flatlaf.util.UIScale.scale(8);
   private FontMetrics viewFontMetrics;
   private int maxNumberWidth;
   private int componentWidth;
@@ -62,10 +56,21 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
     editorPane.addPropertyChangeListener(handler);
     editorPane.addComponentListener(handler);
 
-    setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
-    setForeground(FG_COLOR);
-    setBackground(BG_COLOR);
+    applyTheme();
     init();
+  }
+
+  void applyTheme() {
+    setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1,
+        org.sikuli.ide.theme.OculixUi.color("panel.borderColor", "Component.borderColor")));
+    setForeground(org.sikuli.ide.theme.OculixUi.color("editor.gutterForeground", "Label.disabledForeground"));
+    setBackground(org.sikuli.ide.theme.OculixUi.color("editor.gutterBackground", "Panel.background"));
+    repaint();
+  }
+
+  @Override public void updateUI() {
+    super.updateUI();
+    applyTheme();
   }
 
   private void init() {
@@ -227,12 +232,12 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
   //<editor-fold defaultstate="collapsed" desc="mouse actions">
   @Override
   public void mouseEntered(MouseEvent me) {
-    setBackground(selBG_COLOR);
+    setBackground(org.sikuli.ide.theme.OculixUi.color("editor.lineBackground", "List.selectionBackground"));
   }
 
   @Override
   public void mouseExited(MouseEvent me) {
-    setBackground(BG_COLOR);
+    applyTheme();
   }
 
   @Override
