@@ -1137,6 +1137,36 @@ public class SikulixIDE extends JFrame {
       int ix = tab.getSelectedIndex();
       switchContext(ix);
     });
+    JButton refresh = new JButton(_I("tabRefresh"),
+        new com.formdev.flatlaf.extras.FlatSVGIcon("icons/menu/refresh.svg", 16, 16));
+    refresh.setToolTipText(_I("tabRefreshTip"));
+    refresh.addActionListener(e -> refreshActiveScript());
+    refresh.putClientProperty("FlatLaf.styleClass", "consoleAction");
+    // FlatLaf stretches the trailing component over the free width: the panel takes it, the button stays its size.
+    JPanel trailing = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+    trailing.setOpaque(false);
+    trailing.add(refresh);
+    tabs.putClientProperty("JTabbedPane.trailingComponent", trailing);
+  }
+
+  /** Show the active script as it is on disk, once the user agrees to drop unsaved work. */
+  void refreshActiveScript() {
+    PaneContext context = getActiveContext();
+    if (context == null || context.isTemp()) return;
+    String name = context.getFileName();
+    ScriptRefresh.Outcome outcome = ScriptRefresh.refresh(context, () -> {
+      Object[] options = {_I("tabRefreshDiscard"), _I("cancel")};
+      int answer = JOptionPane.showOptionDialog(this, _I("tabRefreshConfirm", name), _I("tabRefresh"),
+          JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[1]);
+      return answer == 0;
+    });
+    if (outcome == ScriptRefresh.Outcome.RELOADED) {
+      getStatusbar().setMessage(_I("tabRefreshDone", name));
+    } else if (outcome == ScriptRefresh.Outcome.FAILED) {
+      log("refresh: cannot read %s", context.getFile());
+    }
+  }
+
   }
 
   CloseableTabbedPane getTabs() {
@@ -1474,7 +1504,7 @@ public class SikulixIDE extends JFrame {
     return files;
   }
 
-  public class PaneContext {
+  public class PaneContext implements OpenScript {
     File folder;
     File imageFolder;
     File file;
@@ -2144,6 +2174,37 @@ public class SikulixIDE extends JFrame {
         return false;
       }
       return true;
+    }
+
+    @Override
+    public File file() {
+      return file;
+    }
+
+    @Override
+    public String text() throws IOException {
+      StringWriter writer = new StringWriter();
+      pane.write(writer);
+      return writer.toString();
+    }
+
+    @Override
+    public boolean hasUnsavedChanges() {
+      return isDirty();
+    }
+
+    @Override
+    public void replaceContent(String text) {
+      if (!load(text)) return;
+      reparse();
+      pane.getUndoRedo().getUndoManager().discardAllEdits();
+      updateUndoRedoStates();
+      notDirty();
+    }
+
+    @Override
+    public void markUnsaved() {
+      setDirty();
     }
 
     public void reparse() {
