@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * INTERNAL: An abstract super-class for {@link Region} and {@link Image}.
@@ -463,6 +464,22 @@ public abstract class Element {
    */
   public Iterator<Match> getLastMatches() {
     return lastMatches;
+  }
+
+  /**
+   * The matches of the last findAnyList / waitAnyList on this region, one per target found.
+   * Each search thread adds its own match; the list is replaced, never cleared, when a new
+   * search starts, so a thread still finishing cannot touch the list of the next call.
+   */
+  protected volatile List<Match> lastMatchList = new CopyOnWriteArrayList<>();
+
+  /**
+   * a findAnyList / waitAnyList saves every match it found in this region.
+   *
+   * @return the matches of the last findAnyList / waitAnyList, in target order, empty if none
+   */
+  public List<Match> getLastMatchList() {
+    return lastMatchList;
   }
   //</editor-fold>
 
