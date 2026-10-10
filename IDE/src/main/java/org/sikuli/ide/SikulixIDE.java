@@ -1202,6 +1202,16 @@ public class SikulixIDE extends JFrame {
     menu.show(pane, x, y);
   }
 
+  /** Pick an earlier version of the active script; it comes back unsaved, for the user to read and save. */
+  void openLocalHistory() {
+    PaneContext context = getActiveContext();
+    if (context == null || context.isTemp()) return;
+    String name = context.getFileName();
+    LocalHistoryDialog.open(this, name, LocalHistory.standard().versions(context.getFile()), text -> {
+      context.replaceContent(text);
+      context.markUnsaved();
+      getStatusbar().setMessage(_I("historyRestored", name));
+    });
   }
 
   CloseableTabbedPane getTabs() {
@@ -2171,6 +2181,9 @@ public class SikulixIDE extends JFrame {
     public boolean save() {
       String msg = "";
       boolean success = true;
+      if (!isTemp()) {
+        LocalHistory.standard().keep(file);
+      }
       try {
         pane.write(new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF8")));
         notDirty();
