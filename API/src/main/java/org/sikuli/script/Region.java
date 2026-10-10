@@ -8,7 +8,6 @@ import org.sikuli.basics.Settings;
 import org.sikuli.natives.OSUtil.OsWindow;
 import org.sikuli.support.*;
 import org.sikuli.support.Observer;
-import org.sikuli.support.devices.HelpDevice;
 import org.sikuli.support.devices.IRobot;
 import org.sikuli.support.devices.IScreen;
 import org.sikuli.util.Highlight;
@@ -5648,131 +5647,6 @@ public class Region extends Element {
       return 1;
     }
     return 0;
-  }
-  //</editor-fold>
-
-  //<editor-fold desc="048 Mobile actions (Android)">
-  private boolean isAndroid() {
-    if (isOtherScreen() && HelpDevice.isAndroid(getScreen())) {
-      return true;
-    }
-    return false;
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param <PFRML> Pattern, String, Image, Match, Region or Location
-   * @param target  PFRML
-   * @throws FindFailed image not found
-   */
-  public <PFRML> void aTap(PFRML target) throws FindFailed {
-    if (isAndroid()) {
-      Location loc = getLocationFromTarget(target);
-      if (loc != null) {
-        IScreen adbScreen = getScreen();
-        adbScreen.action("tap", loc.x, loc.y);
-        adbScreen.waitAfterAction();
-      }
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param text text
-   */
-  public void aInput(String text) {
-    if (isAndroid()) {
-      getScreen().action("input", text);
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param key key
-   */
-  public void aKey(int key) {
-    if (isAndroid()) {
-      getScreen().action("inputKeyEvent", key);
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   *
-   * @param <PFRML> Pattern, String, Image, Match, Region or Location
-   * @param from    PFRML
-   * @param to      PFRML
-   * @throws FindFailed image not found
-   */
-  public <PFRML> void aSwipe(PFRML from, PFRML to) throws FindFailed {
-    if (isAndroid()) {
-      Location locFrom = getLocationFromTarget(from);
-      Location locTo = getLocationFromTarget(to);
-      if (locFrom != null && locTo != null) {
-        IScreen adbScreen = getScreen();
-        adbScreen.action("swipe", locFrom.x, locFrom.y, locTo.x, locTo.y);
-        adbScreen.waitAfterAction();
-      }
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeUp() {
-    int midX = (int) (w / 2);
-    int swipeStep = (int) (h / 5);
-    try {
-      aSwipe(new Location(midX, h - swipeStep), new Location(midX, swipeStep));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeDown() {
-    int midX = (int) (w / 2);
-    int swipeStep = (int) (h / 5);
-    try {
-      aSwipe(new Location(midX, swipeStep), new Location(midX, h - swipeStep));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeLeft() {
-    int midY = (int) (h / 2);
-    int swipeStep = (int) (w / 5);
-    try {
-      aSwipe(new Location(w - swipeStep, midY), new Location(swipeStep, midY));
-    } catch (FindFailed findFailed) {
-    }
-  }
-
-  /*
-   *
-   * EXPERIMENTAL: for Android over ADB
-   */
-  public void aSwipeRight() {
-    int midY = (int) (h / 2);
-    int swipeStep = (int) (w / 5);
-    try {
-      aSwipe(new Location(swipeStep, midY), new Location(w - swipeStep, midY));
-    } catch (FindFailed findFailed) {
-    }
   }
   //</editor-fold>
 }
