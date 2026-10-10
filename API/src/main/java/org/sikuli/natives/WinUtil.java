@@ -71,7 +71,7 @@ public class WinUtil extends GenericOsUtil {
 	//        x_logical = logicalBounds.x + (x_physical - rcMonitor.left) / sx
 	//        y_logical = logicalBounds.y + (y_physical - rcMonitor.top ) / sy
 	//        w_logical = w_physical / sx, h_logical = h_physical / sy
-	private static Rectangle physicalToLogical(HWND hWnd, Rectangle physical) {
+	static Rectangle physicalToLogical(HWND hWnd, Rectangle physical) {
 		if (physical == null) {
 			return null;
 		}
@@ -189,6 +189,32 @@ public class WinUtil extends GenericOsUtil {
 	// returns black on Chrome/Electron without this flag.
 	private static final int PW_RENDERFULLCONTENT = 2;
 
+	private static boolean hasNoRedirectionBitmap(HWND hwnd) {
+		return (com.sun.jna.platform.win32.User32.INSTANCE
+				.GetWindowLong(hwnd, -20) & 0x00200000) != 0;
+		// -20 = GWL_EXSTYLE
+		// 0x00200000 = WS_EX_NOREDIRECTIONBITMAP
+	}
+
+	private static int selectPrintWindowFlags(HWND hwnd) {
+		if (hasNoRedirectionBitmap(hwnd)) {
+			return PW_RENDERFULLCONTENT;
+		}
+
+		final boolean[] found = { false };
+
+		com.sun.jna.platform.win32.User32.INSTANCE.EnumChildWindows(
+			hwnd,
+			(child, data) -> {
+				found[0] = hasNoRedirectionBitmap(child);
+				return !found[0]; // Stop as soon as a descendant carries the flag.
+			},
+			null
+		);
+
+		return found[0] ? PW_RENDERFULLCONTENT : 0;
+	}
+
 	/**
 	 * Native window capture via {@code PrintWindow(PW_RENDERFULLCONTENT)}: asks
 	 * Windows' DWM to re-render the window into an off-screen HDC, bypassing
@@ -232,7 +258,8 @@ public class WinUtil extends GenericOsUtil {
 		HANDLE hOld = GDI32.INSTANCE.SelectObject(hdcMem, hBitmap);
 
 		try {
-			boolean printed = user32.PrintWindow(hWnd, hdcMem, PW_RENDERFULLCONTENT);
+			int flags = selectPrintWindowFlags(hWnd);
+			boolean printed = user32.PrintWindow(hWnd, hdcMem, flags);
 
 			// Restore the DC's original bitmap before GetDIBits: MSDN requires
 			// the bitmap NOT be selected into any device context during the

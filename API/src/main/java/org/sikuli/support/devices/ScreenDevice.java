@@ -1,5 +1,6 @@
 package org.sikuli.support.devices;
 
+import org.sikuli.natives.WinDesktopCapture;
 import org.sikuli.script.Image;
 import org.sikuli.script.Region;
 import org.sikuli.script.Screen;
@@ -7,6 +8,7 @@ import org.sikuli.support.Commons;
 import org.sikuli.util.OverlayCapturePrompt;
 
 import java.awt.*;
+import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -250,6 +252,9 @@ public class ScreenDevice extends Devices {
   }
 
   public static BufferedImage capture(Rectangle rect) {
+    if (Commons.runningWindows() && !rect.isEmpty()) {
+      return captureOnWindows(rect);
+    }
     ScreenDevice screen = getScreenDeviceForPoint(rect.getLocation());
     if (screen != null) {
       rect = screen.bounds.intersection(rect);
@@ -258,6 +263,40 @@ public class ScreenDevice extends Devices {
       rect = new Rectangle(0, 0, 1, 1);
     }
     return screen.getRobot().createScreenCapture(rect);
+  }
+
+  /**
+   * Windows: a request inside one monitor goes straight to that monitor's Robot.
+   * Otherwise each monitor captures its own part (logical size, its own DPI), and
+   * the part outside every monitor is filled with the windows covering it.
+   * Space covered by no monitor and no window stays black. The image always has
+   * the requested logical size.
+   */
+  private static BufferedImage captureOnWindows(Rectangle rect) {
+    for (ScreenDevice screen : get()) {
+      if (screen.bounds.contains(rect)) {
+        return screen.getRobot().createScreenCapture(rect);
+      }
+    }
+    BufferedImage canvas = new BufferedImage(rect.width, rect.height, BufferedImage.TYPE_INT_RGB);
+    Area missing = new Area(rect);
+    Graphics2D g = canvas.createGraphics();
+    try {
+      for (ScreenDevice screen : get()) {
+        Rectangle part = screen.bounds.intersection(rect);
+        if (part.isEmpty()) {
+          continue;
+        }
+        g.drawImage(screen.getRobot().createScreenCapture(part), part.x - rect.x, part.y - rect.y, null);
+        missing.subtract(new Area(part));
+      }
+    } finally {
+      g.dispose();
+    }
+    if (!missing.isEmpty()) {
+      WinDesktopCapture.fillOffScreen(canvas, rect, missing);
+    }
+    return canvas;
   }
 
   private static AtomicBoolean capturePromptActive = new AtomicBoolean(false);
