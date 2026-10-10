@@ -332,6 +332,13 @@ public abstract class Element {
     //return match;
   }
 
+  /**
+   * same as {@link #findText(String)}
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found
+   */
   public Match findT(String text) throws FindFailed {
     return findText(text);
   }
@@ -342,6 +349,12 @@ public abstract class Element {
     //return match;
   }
 
+  /**
+   * same as {@link #existsText(String)}
+   *
+   * @param text the text to look for
+   * @return the match, or null if not found
+   */
   public Match existsT(String text) {
     return existsText(text);
   }
@@ -350,6 +363,12 @@ public abstract class Element {
     return null != existsText(text);
   }
 
+  /**
+   * same as {@link #hasText(String)}
+   *
+   * @param text the text to look for
+   * @return true if found
+   */
   public boolean hasT(String text) {
     return hasText(text);
   }
@@ -360,6 +379,12 @@ public abstract class Element {
     //return matches;
   }
 
+  /**
+   * same as {@link #findAllText(String)}
+   *
+   * @param text the text to look for
+   * @return the matches (empty if none)
+   */
   public List<Match> findAllT(String text) {
     return findAllText(text);
   }
@@ -387,6 +412,14 @@ public abstract class Element {
     }
   }
 
+  /**
+   * get the pixels of anything that has some
+   *
+   * @param <SFMRISB> String (image file name), File, Match, Region, Image, ScreenImage or BufferedImage
+   * @param whatEver the thing (a Match or Region is captured from the screen)
+   * @return the BufferedImage
+   * @throws IllegalArgumentException for anything else
+   */
   public static <SFMRISB> BufferedImage getBufferedImage(SFMRISB whatEver) {
     if (whatEver instanceof String) {
       return Image.create((String) whatEver).get();
@@ -419,11 +452,21 @@ public abstract class Element {
     return match;
   }
 
+  /**
+   * the absolute path of the file this element was loaded from
+   *
+   * @return the path, or null if the element has no file (see {@link #file()})
+   */
   public String fileName() {
     File file = file();
     return (file == null ? null : file.getAbsolutePath());
   }
 
+  /**
+   * the file this element was loaded from: only an {@link Image} can have one
+   *
+   * @return the File, or null (always null for a Region or a Match)
+   */
   public File file() {
     return null;
   }
