@@ -68,7 +68,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     thumbnail = createThumbnailImage(imgFile, MAXHEIGHT);
     options = new HashMap<>();
     options.put(IButton.FILE, imgFile);
-    options.put(IButton.TEXT, "\"" + imgFile.getName() + "\"");
+    options.put(IButton.TEXT, "\"" + codeName(imgFile.getAbsolutePath()) + "\"");
 
     init();
   }
@@ -78,7 +78,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     options = new HashMap<>();
     File imgFile = pattern.getImage().file();
     options.put(IButton.FILE, imgFile);
-    options.put(IButton.TEXT, "\"" + imgFile.getName() + "\"");
+    options.put(IButton.TEXT, "\"" + codeName(imgFile.getAbsolutePath()) + "\"");
     options.put(IButton.PATT, pattern);
 
     init();
@@ -290,7 +290,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   private void rebuildText() {
     if (options == null) options = new HashMap<>();
     if (options.get(IButton.FILE) == null) return;
-    final String name = ((File) options.get(IButton.FILE)).getName();
+    final String name = codeName(((File) options.get(IButton.FILE)).getAbsolutePath());
     if (!_isPattern && (_offset == null || (_offset.x == 0 && _offset.y == 0))) {
       options.put(IButton.TEXT, "\"" + name + "\"");
       return;
@@ -367,7 +367,7 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     if (options == null || options.get(IButton.FILE) == null) {
       return toString();
     }
-    return editableCode(((File) options.get(IButton.FILE)).getName(), _exact, _similar, _offset);
+    return editableCode(codeName(((File) options.get(IButton.FILE)).getAbsolutePath()), _exact, _similar, _offset);
   }
 
   static String editableCode(String imgName, boolean exact, double similarity, Location offset) {
@@ -546,6 +546,21 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   /** The opposite of {@link #promoteToPattern()}: the image goes back to its bare file name in the code. */
   public void asImage() {
     resetParameters();
+  }
+
+  /**
+   * The image as the code must name it: relative to the folder of the script that carries
+   * it, so an image kept in a subfolder is still found after the code is rewritten.
+   */
+  protected String codeName(String imageFile) {
+    return EditorPane.nameForCode(scriptFolder(), imageFile);
+  }
+
+  /** The folder of the script being edited, or null when it cannot be told. */
+  static File scriptFolder() {
+    SikulixIDE ide = SikulixIDE.get();
+    SikulixIDE.PaneContext context = ide == null ? null : ide.getActiveContext();
+    return context == null ? null : context.getFolder();
   }
 
   /**

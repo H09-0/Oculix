@@ -187,6 +187,7 @@ public class SikulixIDE extends JFrame {
     PaneContext ctx = sikulixIDE.getActiveContext();
     if (ctx != null) ctx.focus();
     sikulixIDE.refreshWorkspace(); // refresh card image counts after capture
+    sikulixIDE.refreshExplorerTree(); // a capture just wrote a file the tree has not seen
   }
 
   //TODO showAfterStart to be revised
@@ -305,10 +306,26 @@ public class SikulixIDE extends JFrame {
     JPanel codePane = new JPanel(new BorderLayout(0, 0));
     codePane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
     codePane.add(tabs, BorderLayout.CENTER);
+    codePane.add(expandExplorerHandle(), BorderLayout.WEST);
 
     // Script file explorer (left of editor)
     Debug.log("IDE: creating file explorer");
     explorer = new ScriptExplorer();
+    explorer.setOnFileOpened(file -> {
+      String extension = FilenameUtils.getExtension(file.getName()).toLowerCase(java.util.Locale.ROOT);
+      if (!(Runner.getRunner(file.getAbsolutePath()) instanceof InvalidRunner)
+          || java.util.Set.of("txt", "md", "json", "xml", "csv", "yaml", "yml", "properties", "html", "css", "log").contains(extension)) {
+        createFileContext(file);
+      } else {
+        JOptionPane.showMessageDialog(explorer, _I("explorerUnsupportedFile", file.getName()));
+      }
+    });
+    explorer.setOnFileMoved(this::explorerFileMoved);
+    explorer.setOnSaveAs(this::saveExplorerAs);
+    explorer.setOnCollapse(() -> {
+      explorerUserCollapsed = !explorerUserCollapsed;
+      refreshExplorerVisibility();
+    });
     explorer.setOnCardSelected(e -> {
       int cardIndex = e.getID();
       int tabIndex = welcomeShowing ? cardIndex + 1 : cardIndex;
@@ -339,7 +356,6 @@ public class SikulixIDE extends JFrame {
     editorSplit.setDividerLocation(0);
     editorSplit.setResizeWeight(0.0); // editor gets all extra space
     editorSplit.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, UIManager.getColor("Separator.foreground")));
-    editorSplit.setOneTouchExpandable(true);
 
     Debug.log("IDE: Putting all together");
     JPanel editPane = new JPanel(new BorderLayout(0, 0));
@@ -1044,7 +1060,7 @@ public class SikulixIDE extends JFrame {
 
   private JSplitPane mainPane;
   private JSplitPane editorSplit;
-  private static final int EXPLORER_OPEN_WIDTH = 200;
+  private static final int EXPLORER_OPEN_WIDTH = com.formdev.flatlaf.util.UIScale.scale(224);
 
   /**
    * Re-opens or collapses the workspace explorer pane based on whether any
@@ -1060,15 +1076,37 @@ public class SikulixIDE extends JFrame {
    * onto the EDT after the current event has finished and the next layout
    * round has run.
    */
+  private boolean explorerUserCollapsed = false;
+  private JComponent expandHandle;
+
+  private JComponent expandExplorerHandle() {
+    JButton handle = new JButton("❯❯");
+    handle.setToolTipText(_I("explorerExpandTip"));
+    handle.setFocusable(false);
+    handle.setMargin(new Insets(0, 4, 0, 4));
+    handle.setPreferredSize(new Dimension(24, 48));
+    handle.setFont(UIManager.getFont("Label.font").deriveFont(11.0f));
+    handle.putClientProperty("JButton.buttonType", "toolBarButton");
+    handle.addActionListener(e -> {
+      explorerUserCollapsed = false;
+      refreshExplorerVisibility();
+    });
+    handle.setVisible(false);
+    expandHandle = handle;
+    return handle;
+  }
+
   private void refreshExplorerVisibility() {
     if (editorSplit == null) return;
-    boolean hasScripts = !contexts.isEmpty();
-    boolean hasWorkspace = currentWorkspaceDir != null;
-    boolean shouldShow = hasScripts || hasWorkspace;
+    boolean hasContext = !contexts.isEmpty() || currentWorkspaceDir != null;
+    boolean shouldShow = hasContext && !explorerUserCollapsed;
     final int target = shouldShow ? EXPLORER_OPEN_WIDTH : 0;
     SwingUtilities.invokeLater(() -> {
       if (explorer != null) {
         explorer.setVisible(shouldShow);
+      }
+      if (expandHandle != null) {
+        expandHandle.setVisible(hasContext && explorerUserCollapsed);
       }
       editorSplit.setDividerLocation(target);
       editorSplit.setDividerSize(shouldShow ? 4 : 0);
@@ -1238,6 +1276,91 @@ public class SikulixIDE extends JFrame {
     }
     explorer.updateScripts(scripts, selected);
     refreshExplorerVisibility();
+  }
+
+  /** Keep existing documents/undo state while rebasing their on-disk locations after a move. */
+  private void explorerFileMoved(java.nio.file.Path source, java.nio.file.Path target) {
+    for (PaneContext context : contexts) {
+      java.nio.file.Path oldFile = context.file.toPath().toAbsolutePath().normalize();
+      if (oldFile.startsWith(source)) {
+        File oldFolder = context.folder;
+        context.file = target.resolve(source.relativize(oldFile)).toFile();
+        context.folder = context.file.getParentFile();
+        if (context.imageFolder.equals(oldFolder)) context.imageFolder = context.folder;
+        context.pane.getScrollPane().putClientProperty("Oculix.fileName", context.file.getName());
+      }
+      java.nio.file.Path imagePath = context.imageFolder.toPath().toAbsolutePath().normalize();
+      if (imagePath.startsWith(source)) context.imageFolder = target.resolve(source.relativize(imagePath)).toFile();
+    }
+    if (currentWorkspaceDir != null) {
+      java.nio.file.Path workspace = currentWorkspaceDir.toPath().toAbsolutePath().normalize();
+      if (workspace.startsWith(source)) {
+        currentWorkspaceDir = target.resolve(source.relativize(workspace)).toFile();
+        explorer.setWorkspaceDirectory(currentWorkspaceDir);
+      }
+    }
+    rebaseImageReferences(source, target);
+    int index = tabs.getSelectedIndex() - (welcomeShowing ? 1 : 0);
+    if (index >= 0 && index < contexts.size()) showContext(contexts.get(index));
+    else refreshWorkspace();
+  }
+
+  private static final java.util.Set<String> SCRIPT_EXTENSIONS = java.util.Set.of("py", "rb", "js");
+
+  /**
+   * Make every script that names the moved entry name it at its new place, in the open
+   * buffers and in the script files on disk under the current workspace.
+   */
+  private void rebaseImageReferences(java.nio.file.Path source, java.nio.file.Path target) {
+    java.util.Set<java.nio.file.Path> open = new java.util.HashSet<>();
+    int updated = 0;
+    for (PaneContext context : contexts) {
+      open.add(context.file.toPath().toAbsolutePath().normalize());
+      if (rebaseBuffer(context, source, target)) updated++;
+    }
+    java.io.File root = currentWorkspaceDir;
+    if (root != null && root.isDirectory()) {
+      try (java.util.stream.Stream<java.nio.file.Path> files = java.nio.file.Files.walk(root.toPath())) {
+        for (java.nio.file.Path file : (Iterable<java.nio.file.Path>) files
+            .filter(java.nio.file.Files::isRegularFile)::iterator) {
+          java.nio.file.Path normalized = file.toAbsolutePath().normalize();
+          if (open.contains(normalized)) continue;
+          String extension = FilenameUtils.getExtension(normalized.toString()).toLowerCase(java.util.Locale.ROOT);
+          if (!SCRIPT_EXTENSIONS.contains(extension)) continue;
+          if (rebaseFile(normalized, source, target)) updated++;
+        }
+      } catch (IOException e) {
+        log("explorer: cannot scan the workspace for image references: %s", e.getMessage());
+      }
+    }
+    if (updated > 0) {
+      log("explorer: image references updated in %d script(s)", updated);
+    }
+  }
+
+  /** @return true when the open document was rewritten */
+  private boolean rebaseBuffer(PaneContext context, java.nio.file.Path source, java.nio.file.Path target) {
+    if (context.folder == null || context.pane == null) return false;
+    try {
+      return ImageReferences.follow(context, source, target);
+    } catch (IOException e) {
+      log("explorer: cannot rewrite the open script %s: %s", context.file, e.getMessage());
+      return false;
+    }
+  }
+
+  /** @return true when the script file was rewritten */
+  private boolean rebaseFile(java.nio.file.Path file, java.nio.file.Path source, java.nio.file.Path target) {
+    try {
+      String code = new String(java.nio.file.Files.readAllBytes(file), java.nio.charset.StandardCharsets.UTF_8);
+      String rebased = ImageReferences.rebase(code, file.getParent(), source, target);
+      if (rebased.equals(code)) return false;
+      java.nio.file.Files.write(file, rebased.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      return true;
+    } catch (IOException e) {
+      log("explorer: cannot rewrite the script %s: %s", file, e.getMessage());
+      return false;
+    }
   }
 
   public void createEmptyScriptContext() {
@@ -2508,7 +2631,15 @@ public class SikulixIDE extends JFrame {
       });
       reparseRenameImages(poss, oldName, new File(newName).getName());
     }
+    refreshExplorerTree();
     //TODO doReparse();
+  }
+
+  /** The tree shows the folder as it was read; a rename or a capture makes that reading stale. */
+  public void refreshExplorerTree() {
+    if (explorer != null) {
+      SwingUtilities.invokeLater(explorer::refreshTree);
+    }
   }
 
   private boolean reparseRenameImages(List<Integer> poss, String oldName, String newName) {
@@ -2771,6 +2902,7 @@ public class SikulixIDE extends JFrame {
 
     // Update explorer header
     if (explorer != null) {
+      explorer.setWorkspaceDirectory(dir);
       explorer.setWorkspaceName(currentWorkspaceName);
     }
 

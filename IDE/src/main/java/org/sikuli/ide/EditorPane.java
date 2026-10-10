@@ -632,6 +632,46 @@ public class EditorPane extends JTextPane implements ThemeAware {
     return codeGenerator.pattern(org.sikuli.script.Pattern.make(img, sim, off, rFactor, mask));
   }
 
+  private String imageNameForCode(String imageFile) {
+    return nameForCode(editorPaneFolder, imageFile);
+  }
+
+  /**
+   * The image as the code must name it: relative to the script folder when it lives under
+   * it, so a file kept in a subfolder is still found, and its bare name otherwise.
+   */
+  public static String nameForCode(File scriptFolder, String imageFile) {
+    if (imageFile == null || imageFile.isEmpty()) {
+      return imageFile;
+    }
+    File file = new File(imageFile);
+    if (!file.isAbsolute()) {
+      return imageFile.replace('\\', '/');
+    }
+    if (scriptFolder == null) {
+      return file.getName();
+    }
+    java.nio.file.Path root = scriptFolder.toPath().toAbsolutePath().normalize();
+    java.nio.file.Path path = file.toPath().toAbsolutePath().normalize();
+    if (!path.startsWith(root) || path.equals(root)) {
+      return file.getName();
+    }
+    return root.relativize(path).toString().replace('\\', '/');
+  }
+
+  /** The image file behind an Image, or the given fallback when it does not come from a file. */
+  private static String imageFileOf(Image img, String fallback) {
+    java.net.URL url = img == null ? null : img.getURL();
+    if (url == null || !"file".equals(url.getProtocol())) {
+      return fallback;
+    }
+    try {
+      return new File(url.toURI()).getAbsolutePath();
+    } catch (java.net.URISyntaxException e) {
+      return fallback;
+    }
+  }
+
   private void insertString(int pos, String str) {
     Document doc = getDocument();
     try {
@@ -824,9 +864,9 @@ public class EditorPane extends JTextPane implements ThemeAware {
     if (ifn == null) {
       return "\"" + EditorPatternLabel.CAPTURE + "\"";
     }
-    String imgName = new File(ifn).getName();
+    String imgName = imageNameForCode(ifn);
     if (img != null) {
-      imgName = new File(img.getName()).getName();
+      imgName = imageNameForCode(imageFileOf(img, img.getName()));
     }
     String pat = "Pattern(\"" + imgName + "\")";
     String patternString = "";
