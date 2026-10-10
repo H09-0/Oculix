@@ -37,10 +37,21 @@ public class Region extends Element {
   public static final String logName = "Region: ";
 
   //<editor-fold desc="000 for Python">
+  /**
+   * INTERNAL: default Region for the Jython layer
+   *
+   * @return a new Screen
+   */
   public static Region getDefaultInstance4py() {
     return new Screen();
   }
 
+  /**
+   * INTERNAL: Region constructor for the Jython layer: Region(x, y, w, h) or Region(Region)
+   *
+   * @param args the script arguments (may be null)
+   * @return the Region, or a new Screen if the arguments are not understood
+   */
   public static Region make4py(ArrayList args) {
     log(3, "make: args: %s", args);
     Region reg = new Screen();
@@ -233,6 +244,12 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="3 findFailedHandler">
+  /**
+   * set a handler called on FindFailed in this region (response HANDLE)<br>
+   * the handler gets an {@link ObserveEvent} FINDFAILED and answers with event.setResponse(RETRY, SKIP, ABORT or PROMPT)
+   *
+   * @param handler an {@link ObserverCallBack} or a Jython/JRuby function with one event parameter
+   */
   public void setFindFailedHandler(Object handler) {
     findFailedResponse = FindFailedResponse.HANDLE;
     findFailedHandler = FindFailed.setHandler(handler, ObserveEvent.Type.FINDFAILED);
@@ -569,6 +586,9 @@ public class Region extends Element {
    * {@link #forWindow(OsWindow)} may claim {@link #tracksSourceWindowBounds
    * tracks=true}, and it does so by writing the field directly rather than
    * going through this setter.
+   *
+   * @param window the window to attach, or null to detach
+   * @return this Region
    */
   public Region setSourceWindow(OsWindow window) {
     if (!Objects.equals(this.sourceWindow, window)) {
@@ -578,6 +598,11 @@ public class Region extends Element {
     return this;
   }
 
+  /**
+   * the application window attached to this region by {@link #setSourceWindow(OsWindow)} or {@link #forWindow(OsWindow)}
+   *
+   * @return the window, or null if none is attached
+   */
   public OsWindow getSourceWindow() {
     return sourceWindow;
   }
@@ -671,6 +696,12 @@ public class Region extends Element {
     return captureSelf(r.x, r.y, r.w, r.h);
   }
 
+  /**
+   * capture the current pixel content of this region<br>
+   * a region attached to an application window is captured from that window, even if covered or spread over screens
+   *
+   * @return a new Image
+   */
   public Image getImage() {
     // v5 (#444): route through captureSelf() so App.focusedWindow().getImage()
     // uses PrintWindow when a sourceWindow is attached. Original line kept
@@ -866,6 +897,10 @@ public class Region extends Element {
     target.tracksSourceWindowBounds = false;
   }
 
+  /**
+   * re-read the bounds of this region's screen after a monitor or resolution change<br>
+   * desktop screens only, not VNC or Android
+   */
   public void resetScreen() {
     Screen scr = (Screen) getScreen();
     scr.reset();
@@ -1812,6 +1847,14 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="050 save capture to file">
+  /**
+   * capture an area of this region's screen (not the region itself) and save it as PNG<br>
+   * area: nothing or a prompt String (interactive selection), empty String (whole screen), Region, Rectangle, or x, y, w, h<br>
+   * then optional: name (saved in the bundle path) or path, name; without name: temp folder
+   *
+   * @param args area, [path,] [name] as above
+   * @return the absolute path of the saved file
+   */
   public String saveCapture(Object... args) {
     return ((Screen) getScreen()).cmdCapture(args).getStoredAt();
   }
@@ -1861,6 +1904,10 @@ public class Region extends Element {
     return getScreen().getLastScreenImageFromScreen().getFile(path, name);
   }
 
+  /**
+   * store the last image taken on this region's screen as LastScreenImage.png in the OculiX app data folder<br>
+   * does nothing if no capture was made yet
+   */
   public void saveLastScreenImage() {
     ScreenImage simg = getScreen().getLastScreenImageFromScreen();
     if (simg != null) {
@@ -2233,6 +2280,13 @@ public class Region extends Element {
     return Region.create(r.x, r.y, r.width, r.height, getScreen());
   }
 
+  /**
+   * create a region at (x + inset.x, y + inset.y) with the size of inset<br>
+   * not checked to stay inside this region
+   *
+   * @param inset position relative to this region's top-left corner, and size
+   * @return the new Region
+   */
   public Region getInset(Region inset) {
     // #444: funnel takes the derived rect; on refusal, keep the exact legacy
     // path — new Region(int,int,int,int) without an explicit Screen — which
@@ -2331,6 +2385,12 @@ public class Region extends Element {
   private int rowHd = 0;
   private int colWd = 0;
 
+  /**
+   * get a part of this region selected by one of the constants NORTH, SOUTH_EAST, MIDDLE, MID_VERTICAL, ...
+   *
+   * @param part one of the constants (200 to 999)
+   * @return the new Region, or this region for any other value
+   */
   public Region get(int part) {
     Rectangle rect = getRectangle(getRect(), part);
     Region derived = deriveWithinWindow(rect);
@@ -2499,6 +2559,14 @@ public class Region extends Element {
     return Region.create(x, y + r * rowH, w, rowH);
   }
 
+  /**
+   * divide this region into n rows and get row r, without changing this region's raster<br>
+   * negative counts reverse from the end (last is -1), values outside range are 0 or last
+   *
+   * @param r row number counting from 0
+   * @param n number of rows
+   * @return the row as new region
+   */
   public Region getRow(int r, int n) {
     Region reg = new Region(this);
     reg.setRows(n);
@@ -3203,10 +3271,24 @@ public class Region extends Element {
     return lastMatches;
   }
 
+  /**
+   * same as {@link #findAllList(Object)}
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the matches as a List (empty if none)
+   */
   public <PSI> List<Match> getAll(PSI target) {
     return findAllList(target);
   }
 
+  /**
+   * the smallest region containing all matches of the target
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the union of the matches, or this region if less than 2 matches
+   */
   public <PSI> Region unionAll(PSI target) {
     List<Match> matches = getAll(target);
     if (matches.size() < 2) {
@@ -3223,6 +3305,13 @@ public class Region extends Element {
     return theUnion;
   }
 
+  /**
+   * {@link #findAll(Object)} as a List, without FindFailed
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the matches by decreasing score (empty if none or if the find failed)
+   */
   public <PSI> List<Match> findAllList(PSI target) {
     List<Match> matches = new ArrayList<>();
     try {
@@ -3232,6 +3321,13 @@ public class Region extends Element {
     return matches;
   }
 
+  /**
+   * all matches of the target, sorted row by row from top to bottom and left to right within a row
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the sorted matches, or null if none
+   */
   public <PSI> List<Match> findAllByRow(PSI target) {
     List<Match> mList = getAll(target);
     if (mList.isEmpty()) {
@@ -3259,6 +3355,13 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * all matches of the target, sorted column by column from left to right and top to bottom within a column
+   *
+   * @param <PSI> Pattern, String or Image
+   * @param target what to find
+   * @return the sorted matches, or null if none
+   */
   public <PSI> List<Match> findAllByColumn(PSI target) {
     Match[] matches = new Match[0];
     List<Match> mList = getAll(target);
@@ -3287,6 +3390,13 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * search all targets at once in one capture and return the match with the highest score<br>
+   * the match's index is the position of its target in the arguments
+   *
+   * @param args Pattern, String or Image, as many as needed
+   * @return the best match, or null if none found or no arguments
+   */
   public Match findBest(Object... args) {
     if (args.length == 0) {
       return null;
@@ -3296,6 +3406,14 @@ public class Region extends Element {
     return findBestList(pList);
   }
 
+  /**
+   * like {@link #findBest(Object...)}, but each target is waited for up to the given time<br>
+   * the search stops as soon as the first target is found or has timed out
+   *
+   * @param time seconds
+   * @param args Pattern, String or Image, as many as needed
+   * @return the best match, or null if none found or no arguments
+   */
   public Match waitBest(double time, Object... args) {
     if (args.length == 0) {
       return null;
@@ -3305,11 +3423,24 @@ public class Region extends Element {
     return waitBestList(time, pList);
   }
 
+  /**
+   * {@link #findBest(Object...)} with the targets given as a List
+   *
+   * @param pList Pattern, String or Image
+   * @return the best match, or null if none found or the list is empty
+   */
   public Match findBestList(List<Object> pList) {
     Debug.log(logLevel, "findBest: enter");
     return findBestListDo(0, pList);
   }
 
+  /**
+   * {@link #waitBest(double, Object...)} with the targets given as a List
+   *
+   * @param time seconds
+   * @param pList Pattern, String or Image
+   * @return the best match, or null if none found or the list is empty
+   */
   public Match waitBestList(double time, List<Object> pList) {
     Debug.log(logLevel, "waitBest: enter");
     return findBestListDo(time, pList);
@@ -3338,6 +3469,13 @@ public class Region extends Element {
     }
   }
 
+  /**
+   * search all targets at once in one capture, each in its own thread<br>
+   * each match's index is the position of its target in the arguments
+   *
+   * @param args Pattern, String or Image, as many as needed
+   * @return the matches of the targets that were found (empty if none)
+   */
   public List<Match> findAny(Object... args) {
     Debug.log(logLevel, "findAny: enter");
     if (args.length == 0) {
@@ -3348,6 +3486,14 @@ public class Region extends Element {
     return findAnyList(pList);
   }
 
+  /**
+   * like {@link #findAny(Object...)}, but each target is waited for up to the given time<br>
+   * the search stops as soon as the first target is found or has timed out
+   *
+   * @param time seconds
+   * @param args Pattern, String or Image, as many as needed
+   * @return the matches found so far (empty if none)
+   */
   public List<Match> waitAny(double time, Object... args) {
     if (args.length == 0) {
       return new ArrayList<Match>();
@@ -3357,11 +3503,24 @@ public class Region extends Element {
     return waitAnyList(time, pList);
   }
 
+  /**
+   * {@link #findAny(Object...)} with the targets given as a List
+   *
+   * @param pList Pattern, String or Image
+   * @return the matches of the targets that were found (empty if none)
+   */
   public List<Match> findAnyList(List<Object> pList) {
     Debug.log(logLevel, "findAny: enter");
     return findAnyListDo(0, pList);
   }
 
+  /**
+   * {@link #waitAny(double, Object...)} with the targets given as a List
+   *
+   * @param time seconds
+   * @param pList Pattern, String or Image
+   * @return the matches found so far (empty if none)
+   */
   public List<Match> waitAnyList(double time, List<Object> pList) {
     Debug.log(logLevel, "waitAny: enter");
     return findAnyListDo(time, pList);
@@ -3375,6 +3534,12 @@ public class Region extends Element {
     return mList;
   }
 
+  /**
+   * the smallest region containing the matches of all targets found by {@link #findAny(Object...)}
+   *
+   * @param targets Pattern, String or Image, at least 2
+   * @return the union of the matches, or this region if less than 2 targets or none found
+   */
   public Region unionAny(Object... targets) {
     if (targets.length < 2) {
       return this;
@@ -3384,6 +3549,12 @@ public class Region extends Element {
     return unionAnyList(pList);
   }
 
+  /**
+   * {@link #unionAny(Object...)} with the targets given as a List
+   *
+   * @param targets Pattern, String or Image, at least 2
+   * @return the union of the matches, or this region if less than 2 targets or none found
+   */
   public Region unionAnyList(List<Object> targets) {
     if (targets.size() < 2) {
       return this;
@@ -3409,26 +3580,70 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold desc="021 find text public methods">
+  /**
+   * wait for the text to appear in this region (OCR), like {@link #wait(Object, double)} for an image
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitText(String text, double timeout) throws FindFailed {
     return relocate(wait("\t" + text + "\t", timeout));
   }
 
+  /**
+   * wait for the text to appear in this region (OCR) with the autoWaitTimeout
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitText(String text) throws FindFailed {
     return waitText(text, autoWaitTimeout);
   }
 
+  /**
+   * same as {@link #waitText(String, double)}
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitT(String text, double timeout) throws FindFailed {
     return waitText(text, timeout);
   }
 
+  /**
+   * same as {@link #waitText(String)}
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found in time
+   */
   public Match waitT(String text) throws FindFailed {
     return waitT(text, autoWaitTimeout);
   }
 
+  /**
+   * find the text in this region (OCR) with one search, like {@link #find(Object)} for an image
+   *
+   * @param text the text to look for
+   * @return the match
+   * @throws FindFailed if not found
+   */
   public Match findText(String text) throws FindFailed {
     return waitText(text, 0);
   }
 
+  /**
+   * check if the text appears in this region (OCR) within the given time, like {@link #exists(Object, double)}
+   *
+   * @param text the text to look for
+   * @param timeout seconds
+   * @return the match, or null if not found (no FindFailed)
+   */
   public Match existsText(String text, double timeout) {
     Match match = null;
     try {
@@ -3438,14 +3653,32 @@ public class Region extends Element {
     return match;
   }
 
+  /**
+   * check if the text appears in this region (OCR) within the autoWaitTimeout
+   *
+   * @param text the text to look for
+   * @return the match, or null if not found (no FindFailed)
+   */
   public Match existsText(String text) {
     return existsText(text, autoWaitTimeout);
   }
 
+  /**
+   * check with one search if the text is in this region (OCR)
+   *
+   * @param text the text to look for
+   * @return true if found
+   */
   public boolean hasText(String text) {
     return null != existsText(text, 0);
   }
 
+  /**
+   * find all occurrences of the text in this region (OCR)
+   *
+   * @param text the text to look for
+   * @return the matches (empty if none, no FindFailed)
+   */
   public List<Match> findAllText(String text) {
     List<Match> matches = new ArrayList<>();
     try {
@@ -4359,6 +4592,11 @@ public class Region extends Element {
    */
   private Observer regionObserver = null;
 
+  /**
+   * the {@link Observer} of this region, created on first use
+   *
+   * @return the observer
+   */
   public Observer getObserver() {
     if (regionObserver == null) {
       regionObserver = new Observer(this);
@@ -4760,6 +4998,11 @@ public class Region extends Element {
   //</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="040 Mouse actions - clicking">
+  /**
+   * the point a mouse action on this region would use: the last match's target if there is one, else the center
+   *
+   * @return the Location
+   */
   public Location checkMatch() {
     if (lastMatch != null) {
       return lastMatch.getTarget();
