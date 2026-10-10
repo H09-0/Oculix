@@ -575,16 +575,17 @@ public class FileManager {
     if (null == path) {
       return null;
     }
-    File fImage = new File(path, name);
     String formatName = "png";
+    File fImage;
     if (name == null) {
-      fImage = new File(path, String.format("noname-%d.png", name, new Date().getTime()));
+      fImage = new File(path, String.format("noname-%d.png", new Date().getTime()));
     } else if (name.startsWith("#")) {
       fImage = new File(path, String.format("%s-%d.png", name.substring(1), new Date().getTime()));
-    } else if (!name.isEmpty()) {
-      if (!name.contains(".")) {
-        fImage = new File(path, name + ".png");
-      } else {
+    } else if (!name.isEmpty() && !name.contains(".")) {
+      fImage = new File(path, name + ".png");
+    } else {
+      fImage = new File(path, name);
+      if (name.contains(".")) {
         formatName = name.substring(name.lastIndexOf(".") + 1);
       }
     }
