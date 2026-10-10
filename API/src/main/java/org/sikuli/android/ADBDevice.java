@@ -11,8 +11,10 @@ import org.sikuli.basics.Debug;
 import org.sikuli.support.Commons;
 import org.sikuli.support.FileManager;
 import org.sikuli.script.ScreenImage;
+import org.sikuli.script.SikuliXception;
 import se.vidstige.jadb.JadbDevice;
 import se.vidstige.jadb.JadbException;
+import se.vidstige.jadb.SliceReader;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +44,12 @@ public class ADBDevice {
 */
 
   private static int lvl = 3;
+
+  /** How long one read may block before the capture checks interruption and its deadline again. */
+  private static final int CAPTURE_READ_SLICE_MILLIS = 200;
+
+  /** Upper bound for a whole raw screencap, from opening the transport to the last pixel row. */
+  public static long captureTimeoutMillis = 30_000;
 
   private static void log(int level, String message, Object... args) {
     Debug.logx(level, "ADBDevice: " + message, args);
@@ -230,34 +239,32 @@ public class ADBDevice {
     return bImage;
   }
 
+  /**
+   * Raw screencap of the device, cropped to the given rectangle (all -1 sizes with x = y = 0 means
+   * the full screen). Throws SikuliXception when the capture cannot deliver a complete image:
+   * interrupted, past {@link #captureTimeoutMillis}, stream ended early, unexpected format.
+   * The interrupt status of the calling thread is left set.
+   */
   public Mat captureDeviceScreenMat(int x, int y, int actW, int actH) {
     // Lazy-load OpenCV — only the screen-capture path needs the native lib.
     // Idempotent: Commons.loadOpenCV() short-circuits if already loaded.
     Commons.loadOpenCV();
     log(lvl, "captureDeviceScreenMat: enter: [%d,%d %dx%d]", x, y, actW, actH);
-    byte[] imagePrefix = new byte[12];
-    byte[] image = new byte[0];
-    boolean isfullScreen = false;
-    if (x == 0 && y == 0 && actW < 0 && actH < 0) {
-      isfullScreen = true;
-    }
-    int currentW;
-    int currentH;
+    boolean isfullScreen = x == 0 && y == 0 && actW < 0 && actH < 0;
     int channels = 4;
-    Mat matImage = new Mat();
-    try (InputStream deviceOut = device.execute("screencap")) {
-      Debug timer = Debug.startTimer();
-      while (deviceOut.available() < 12) ;
-      deviceOut.read(imagePrefix);
+    long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(captureTimeoutMillis);
+    Debug timer = Debug.startTimer();
+    try (InputStream deviceOut = device.executeWithDeadline(CAPTURE_READ_SLICE_MILLIS, deadline, "screencap")) {
+      byte[] imagePrefix = new byte[12];
+      SliceReader.readFully(deviceOut, imagePrefix, deadline);
       if (imagePrefix[8] != 0x01) {
-        log(-1, "captureDeviceScreenMat: image type not RGBA");
-        return null;
+        throw new SikuliXception("ADBDevice: screencap: image type not RGBA");
       }
-      currentW = byte2int(imagePrefix, 0, 4);
-      currentH = byte2int(imagePrefix, 4, 4);
+      int currentW = byte2int(imagePrefix, 0, 4);
+      int currentH = byte2int(imagePrefix, 4, 4);
       if (!((currentW == devW && currentH == devH) || (currentH == devW && currentW == devH))) {
-        log(-1, "captureDeviceScreenMat: width or height differ from device values");
-        return null;
+        throw new SikuliXception(String.format("ADBDevice: screencap: %dx%d differs from device %dx%d",
+            currentW, currentH, devW, devH));
       }
       if (isfullScreen) {
         actW = currentW;
@@ -271,42 +278,17 @@ public class ADBDevice {
         }
       }
       long duration = timer.lap("");
-      int nPixels = actW * actH;
-      image = new byte[nPixels * channels];
+      int rowBytes = currentW * channels;
+      int cropBytes = actW * channels;
+      byte[] row = new byte[rowBytes];
+      byte[] image = new byte[actH * cropBytes];
       int atImage = 0;
-      boolean endOfStream = false;
-      int maxR = y + actH;
-      int maxC = x + actW;
-      byte[] pixel = new byte[channels];
-      int pixelByte = -1;
-      while (true) {
-        for (int npr = 0; npr < maxR; npr++) {
-          for (int npc = 0; npc < currentW; npc++) {
-            //byte[] pixel = deviceOut.readNBytes(4);
-            for (int np = 0; np < channels; np++) {
-              pixelByte = deviceOut.read();
-              if (pixelByte > -1) {
-                pixel[np] = (byte) pixelByte;
-              } else {
-                endOfStream = true;
-              }
-            }
-	    if (!endOfStream) {
-              if (npr >= y && npc >= x && npc < maxC) {
-                image[atImage++] = pixel[0];
-                image[atImage++] = pixel[1];
-                image[atImage++] = pixel[2];
-                image[atImage++] = pixel[3];
-              }
-            } else {
-              break;
-            }
-          }
-          if (endOfStream) {
-            break;
-          }
+      for (int npr = 0; npr < y + actH; npr++) {
+        SliceReader.readFully(deviceOut, row, deadline);
+        if (npr >= y) {
+          System.arraycopy(row, x * channels, image, atImage, cropBytes);
+          atImage += cropBytes;
         }
-        break;
       }
       Mat matOrg = new Mat(actH, actW, CvType.CV_8UC4);
       matOrg.put(0, 0, image);
@@ -317,13 +299,15 @@ public class ADBDevice {
       matsImage.add(matsOrg.get(2));
       matsImage.add(matsOrg.get(1));
       matsImage.add(matsOrg.get(0));
+      Mat matImage = new Mat();
       Core.merge(matsImage, matImage);
       log(lvl, "captureDeviceScreenMat: exit: [%d,%d %dx%d] %d (%d)",
               x, y, actW, actH, duration, timer.end());
-    } catch (Exception e) {
-      log(-1, "captureDeviceScreenMat: [%d,%d %dx%d] %s", x, y, actW, actH, e);
+      return matImage;
+    } catch (IOException | JadbException e) {
+      throw new SikuliXception(String.format("ADBDevice: screencap [%d,%d %dx%d] failed: %s",
+          x, y, actW, actH, e), e);
     }
-    return matImage;
   }
 
   private int byte2int(byte[] bytes, int start, int len) {
