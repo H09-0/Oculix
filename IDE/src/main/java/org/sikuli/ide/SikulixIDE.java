@@ -812,10 +812,11 @@ public class SikulixIDE extends JFrame {
     // Enregistrer
     scriptDependentItems.add(sub.addItem(_I("menuFileSave"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, scMask),
-        e -> { PaneContext ctx = getActiveContext(); if (ctx != null) ctx.save(); }));
+        e -> { PaneContext ctx = getActiveContext(); if (ctx != null) { if (ctx.isTemp()) ctx.saveAs(); else ctx.save(); } }));
     scriptDependentItems.add(sub.addItem(_I("menuFileSaveAs"),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { PaneContext ctx = getActiveContext(); if (ctx != null) ctx.saveAs(); }));
+    sub.addItem(_I("explorerWorkspaceSaveAs"), null, e -> saveExplorerAs());
     scriptDependentItems.add(sub.addItem("Export packed source...",
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_E, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> { exportAsZip(); }));
@@ -1976,46 +1977,60 @@ public class SikulixIDE extends JFrame {
         break;
       }
       final PaneContext newContext = new PaneContext();
+      // Copying a bundle into itself would recurse through its own destination.
+      if (isBundle(file) && file.toPath().toAbsolutePath().normalize()
+          .startsWith(folder.toPath().toAbsolutePath().normalize())) {
+        JOptionPane.showMessageDialog(sikulixIDE, _I("explorerMoveIntoSelf"));
+        return false;
+      }
       if (newContext.setFile(file)) {
         newContext.file.delete();
         try {
           copyContent(this, newContext, isBundle(file));
         } catch (IOException e) {
           success = false;
+          JOptionPane.showMessageDialog(sikulixIDE, _I("explorerSaveFailed", e.getMessage()),
+              _I("explorerOperationFailed"), JOptionPane.ERROR_MESSAGE);
         }
+      } else {
+        success = false;
       }
       if (success) {
         newContext.setRunner();
         newContext.pos = pos;
         newContext.pane = pane;
+        pane.context = newContext;
+        pane.setTemp(false);
+        if (lastContext == this) lastContext = newContext;
         newContext.showThumbs = showThumbs;
         contexts.set(pos, newContext);
         contextsClosed.add(0, this);
+        pane.getScrollPane().putClientProperty("Oculix.fileName", newContext.file.getName());
         tabs.setTitleAt(pos, newContext.name);
-        sikulixIDE.setIDETitle(newContext.file.getAbsolutePath());
-        sikulixIDE.refreshWorkspace();
-        if (sikulixIDE.sidebar != null) {
-          sikulixIDE.sidebar.updateProjectInfo(newContext.getFileName(), newContext.getFolder());
+        if (isTemp()) {
+          currentWorkspaceDir = newContext.folder;
+          currentWorkspaceName = newContext.folder.getName();
+          explorer.setWorkspaceDirectory(currentWorkspaceDir);
+          explorer.setWorkspaceName(currentWorkspaceName);
         }
+        sikulixIDE.showContext(newContext);
+        JOptionPane.showMessageDialog(sikulixIDE, _I("explorerSavedAt", newContext.file.getAbsolutePath()),
+            _I("explorerSaved"), JOptionPane.INFORMATION_MESSAGE);
       }
       return success;
     }
 
     private void copyContent(PaneContext currentContext, PaneContext newContext, boolean asBundle) throws
             IOException {
-      // Save-As bug fix: previously this method assumed FileUtils.copyDirectory
-      // would silently DTRT, but in practice it could leave the destination
-      // empty without throwing (e.g. when the destination folder pre-exists
-      // from setFile() but the source folder is itself empty due to ordering
-      // races). Now we copy the .py explicitly first, then enumerate every
-      // sibling file (.png images, fixtures, anything else in the bundle)
-      // and copy each one individually with REPLACE_EXISTING. Logs each step
-      // so a missing image is instantly diagnosable in the message panel.
+      // A bundle Save As includes its complete directory tree.
       if (asBundle) {
         File srcFolder = currentContext.folder;
         File dstFolder = newContext.folder;
         if (!dstFolder.exists()) {
           dstFolder.mkdirs();
+        }
+        if (dstFolder.toPath().toRealPath().startsWith(srcFolder.toPath().toRealPath())) {
+          throw new IOException(_I("explorerMoveIntoSelf"));
         }
         // 1. Copy the script file, renamed in-place to the new base name.
         final String oldName = currentContext.file.getName();
@@ -2023,35 +2038,37 @@ public class SikulixIDE extends JFrame {
         final String ext = "." + FilenameUtils.getExtension(oldName);
         File srcScript = new File(srcFolder, oldName);
         File dstScript = new File(dstFolder, newName + ext);
+        if (!oldName.equals(dstScript.getName()) && new File(srcFolder, dstScript.getName()).exists()) {
+          throw new java.nio.file.FileAlreadyExistsException(dstScript.getName());
+        }
         if (srcScript.isFile()) {
           FileUtils.copyFile(srcScript, dstScript);
         } else {
           // Fallback: source script is open in memory only; flush the active
           // pane's text directly into the destination.
-          currentContext.getPane().write(new BufferedWriter(
-              new OutputStreamWriter(new FileOutputStream(dstScript), "UTF8")));
-        }
-        // 2. Copy every other file in the source bundle (images, .json,
-        // workspace metadata, anything the user dropped there).
-        File[] siblings = srcFolder.listFiles();
-        int copied = 0;
-        if (siblings != null) {
-          for (File sibling : siblings) {
-            if (sibling.equals(srcScript)) continue;       // already handled above
-            if (!sibling.isFile()) continue;               // skip subdirs for now
-            File dst = new File(dstFolder, sibling.getName());
-            try {
-              java.nio.file.Files.copy(sibling.toPath(), dst.toPath(),
-                  java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-              copied++;
-            } catch (IOException ioex) {
-              log("PaneContext: copyContent: skipped %s (%s)",
-                  sibling.getName(), ioex.getMessage());
-            }
+          try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dstScript), "UTF8"))) {
+            currentContext.getPane().write(writer);
           }
         }
-        log("PaneContext: copyContent: %s -> %s (%d sibling file(s) copied)",
-            srcFolder, dstFolder, copied);
+        // 2. Copy the complete bundle tree, including nested fixtures and images.
+        java.nio.file.Path sourceRoot = srcFolder.toPath().toRealPath();
+        java.nio.file.Path destinationRoot = dstFolder.toPath().toRealPath();
+        java.nio.file.Files.walkFileTree(sourceRoot, new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+          @Override public java.nio.file.FileVisitResult preVisitDirectory(java.nio.file.Path dir,
+              java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+            java.nio.file.Files.createDirectories(destinationRoot.resolve(sourceRoot.relativize(dir)));
+            return java.nio.file.FileVisitResult.CONTINUE;
+          }
+          @Override public java.nio.file.FileVisitResult visitFile(java.nio.file.Path entry,
+              java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+            if (!entry.equals(sourceRoot.resolve(oldName))) {
+              java.nio.file.Path target = destinationRoot.resolve(sourceRoot.relativize(entry));
+              java.nio.file.Files.copy(entry, target, java.nio.file.LinkOption.NOFOLLOW_LINKS,
+                  java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            return java.nio.file.FileVisitResult.CONTINUE;
+          }
+        });
       } else {
         FileUtils.copyFile(currentContext.file, newContext.file);
         // Same intent as the bundle branch above, but for flat-script saves:
@@ -2062,9 +2079,7 @@ public class SikulixIDE extends JFrame {
         // the script references files that only exist next to the *original*.
         File dstDir = newContext.file.getParentFile();
         if (dstDir == null || !dstDir.isDirectory()) {
-          // Nothing else we can do safely — destination has no resolvable folder.
-          log("PaneContext: copyContent: flat save: no destination folder, image copy skipped");
-          return;
+          throw new IOException("Destination folder is unavailable: " + dstDir);
         }
         try {
           String[] text = currentContext.getPane().getText().split("\n");
@@ -2076,20 +2091,14 @@ public class SikulixIDE extends JFrame {
             if (src == null || !src.isFile()) { skipped++; continue; }
             if (!seen.add(src.getName())) continue; // de-dup multiple references
             File dst = new File(dstDir, src.getName());
-            try {
-              java.nio.file.Files.copy(src.toPath(), dst.toPath(),
-                  java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-              copied++;
-            } catch (IOException ioex) {
-              log("PaneContext: copyContent: flat save: skipped %s (%s)",
-                  src.getName(), ioex.getMessage());
-              skipped++;
-            }
+            java.nio.file.Files.copy(src.toPath(), dst.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            copied++;
           }
           log("PaneContext: copyContent: flat save: %s -> %s (%d image(s) copied, %d skipped)",
               currentContext.file, newContext.file, copied, skipped);
         } catch (Exception ex) {
-          log("PaneContext: copyContent: flat save: image scan failed (%s)", ex.getMessage());
+          throw new IOException("Image copy failed: " + ex.getMessage(), ex);
         }
       }
     }
@@ -2848,6 +2857,54 @@ public class SikulixIDE extends JFrame {
   private File currentWorkspaceDir = null;
   private String currentWorkspaceName = "Workspace";
 
+  /** Save the displayed workspace as a complete copy, including unsaved open documents. */
+  private void saveExplorerAs() {
+    int selected = tabs.getSelectedIndex() - (welcomeShowing ? 1 : 0);
+    PaneContext active = selected >= 0 && selected < contexts.size() ? contexts.get(selected) : null;
+    if (active != null && active.isTemp()) {
+      active.saveAs();
+      return;
+    }
+    File directory = explorer == null ? currentWorkspaceDir : explorer.getExplorerDirectory();
+    if (directory == null) return;
+    JFileChooser chooser = new JFileChooser(directory.getParentFile());
+    chooser.setDialogTitle(_I("explorerSaveDestination"));
+    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+    chooser.setAcceptAllFileFilterUsed(false);
+    chooser.setSelectedFile(new File(directory.getParentFile(), directory.getName() + "-copy"));
+    if (chooser.showSaveDialog(ideWindow) != JFileChooser.APPROVE_OPTION) return;
+    java.nio.file.Path source = directory.toPath().toAbsolutePath().normalize();
+    java.nio.file.Path target = chooser.getSelectedFile().toPath().toAbsolutePath().normalize();
+    try {
+      Map<java.nio.file.Path, String> buffers = new HashMap<>();
+      List<PaneContext> savedContexts = new ArrayList<>();
+      for (PaneContext context : contexts) {
+        java.nio.file.Path file = context.file.toPath().toAbsolutePath().normalize();
+        if (file.startsWith(source)) {
+          StringWriter writer = new StringWriter();
+          context.pane.write(writer);
+          buffers.put(source.relativize(file), writer.toString());
+          savedContexts.add(context);
+        }
+      }
+      org.sikuli.ide.ui.WorkspaceSnapshot.saveAs(source, target, buffers);
+      // The destination is complete now. Preserve the open documents while rebasing their paths.
+      explorerFileMoved(source, target);
+      for (PaneContext context : savedContexts) context.notDirty();
+      currentWorkspaceDir = target.toFile();
+      currentWorkspaceName = currentWorkspaceDir.getName();
+      explorer.setWorkspaceDirectory(currentWorkspaceDir);
+      explorer.setWorkspaceName(currentWorkspaceName);
+      org.sikuli.util.SikulixFileChooser.persistLastDir(currentWorkspaceDir);
+      refreshWorkspace();
+      JOptionPane.showMessageDialog(ideWindow, _I("explorerSavedAt", target.toString()),
+          _I("explorerSaved"), JOptionPane.INFORMATION_MESSAGE);
+    } catch (IOException ex) {
+      JOptionPane.showMessageDialog(ideWindow, _I("explorerSaveFailed", ex.getMessage()),
+          _I("explorerOperationFailed"), JOptionPane.ERROR_MESSAGE);
+    }
+  }
+
   private void openNewWorkspaceDialog() {
     File dir = WorkspaceDialog.showDialog(ideWindow);
     if (dir != null) {
@@ -3180,6 +3237,7 @@ public class SikulixIDE extends JFrame {
                     InputEvent.SHIFT_DOWN_MASK | scMask),
             new FileAction(FileAction.SAVE_AS)));
     jmi.setName("SAVE_AS");
+    _fileMenu.add(createMenuItem(_I("explorerWorkspaceSaveAs"), null, e -> saveExplorerAs()));
 
     JMenu exportSubMenu = new JMenu("Export");
     exportSubMenu.add(createMenuItem("As .zip (workspace)",
@@ -3269,7 +3327,11 @@ public class SikulixIDE extends JFrame {
     }
 
     public void doSave(ActionEvent ae) {
-      getActiveContext().save();
+      PaneContext context = getActiveContext();
+      if (context != null) {
+        if (context.isTemp()) context.saveAs();
+        else context.save();
+      }
     }
 
     public void doSaveAs(ActionEvent ae) {
