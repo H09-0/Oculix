@@ -67,11 +67,13 @@ public class EditorPane extends JTextPane implements ThemeAware {
   EditorPane() {
     addMouseListener(new MouseInputAdapter() {
       @Override
-      public void mouseClicked(MouseEvent e) {
-        if (e.getButton() == MouseEvent.BUTTON3) {
-          new Thread(() -> handlePopup()).start();
-        }
-        super.mouseClicked(e);
+      public void mousePressed(MouseEvent e) {
+        if (e.isPopupTrigger()) handlePopup(e);
+      }
+
+      @Override
+      public void mouseReleased(MouseEvent e) {
+        if (e.isPopupTrigger()) handlePopup(e);
       }
     });
     scrollPane = new JScrollPane(this);
@@ -264,8 +266,8 @@ public class EditorPane extends JTextPane implements ThemeAware {
   private SikuliIDEPopUpMenu popMenuCompletion;
 
   //TODO right mouse click in tab text
-  private void handlePopup() {
-    trace("text popup");
+  private void handlePopup(MouseEvent e) {
+    SikulixIDE.get().showEditorMenu(this, e.getX(), e.getY());
   }
 
   void updateDocumentListeners(String source) { //TODO when is it needed?

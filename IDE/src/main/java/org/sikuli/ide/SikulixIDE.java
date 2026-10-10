@@ -1167,6 +1167,41 @@ public class SikulixIDE extends JFrame {
     }
   }
 
+  /** The right-click menu of the editor, built on the actions of the Edit menu. */
+  void showEditorMenu(EditorPane pane, int x, int y) {
+    int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+    JPopupMenu menu = new JPopupMenu();
+    try {
+      menu.add(_undoAction);
+      menu.add(_redoAction);
+      menu.addSeparator();
+      menu.add(createMenuItem(_I("menuEditCut"), KeyStroke.getKeyStroke(KeyEvent.VK_X, scMask),
+          new EditAction(EditAction.CUT)));
+      menu.add(createMenuItem(_I("menuEditCopy"), KeyStroke.getKeyStroke(KeyEvent.VK_C, scMask),
+          new EditAction(EditAction.COPY)));
+      menu.add(createMenuItem(_I("menuEditPaste"), KeyStroke.getKeyStroke(KeyEvent.VK_V, scMask),
+          new EditAction(EditAction.PASTE)));
+      menu.add(createMenuItem(_I("menuEditSelectAll"), KeyStroke.getKeyStroke(KeyEvent.VK_A, scMask),
+          new EditAction(EditAction.SELECT_ALL)));
+      menu.addSeparator();
+      menu.add(createMenuItem(_I("menuEditIndent"), null, new EditAction(EditAction.INDENT)));
+      menu.add(createMenuItem(_I("menuEditUnIndent"), null, new EditAction(EditAction.UNINDENT)));
+    } catch (NoSuchMethodException e) {
+      log("editor menu: %s", e.getMessage());
+    }
+    menu.addSeparator();
+    PaneContext context = getActiveContext();
+    boolean onDisk = context != null && !context.isTemp();
+    JMenuItem history = createMenuItem(_I("menuLocalHistory"), null, e -> openLocalHistory());
+    history.setEnabled(onDisk);
+    menu.add(history);
+    JMenuItem refresh = createMenuItem(_I("tabRefresh"),
+        new com.formdev.flatlaf.extras.FlatSVGIcon("icons/menu/refresh.svg", 16, 16), null, e -> refreshActiveScript());
+    refresh.setEnabled(onDisk);
+    menu.add(refresh);
+    menu.show(pane, x, y);
+  }
+
   }
 
   CloseableTabbedPane getTabs() {
