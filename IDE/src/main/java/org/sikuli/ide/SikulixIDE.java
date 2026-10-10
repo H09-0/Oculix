@@ -1112,6 +1112,7 @@ public class SikulixIDE extends JFrame {
             e -> openExistingWorkspace()
         );
         welcomeTab.putClientProperty("isClosable", false);
+        welcomeTab.putClientProperty("JTabbedPane.tabClosable", false);
       }
       tabs.addTab("Welcome", welcomeTab);
       welcomeShowing = true;
@@ -1600,6 +1601,7 @@ public class SikulixIDE extends JFrame {
       showThumbs = !PreferencesUser.get().getPrefMorePlainText();
       pane = new EditorPane(this);
       contexts.add(pos, this);
+      pane.getScrollPane().putClientProperty("Oculix.fileName", file.getName());
       tabs.addNewTab(name, pane.getScrollPane(), pos);
       tabs.setSelectedIndex(pos);
       pane.makeReady();
@@ -4492,15 +4494,9 @@ public class SikulixIDE extends JFrame {
       messageArea.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
     }
 
-    // Branded tab title: JetBrains Mono 10, 0.18em letter-spacing, uppercase.
-    // Color comes from UIManager so it follows the active LaF.
-    JLabel tabTitle = new JLabel(_I("paneMessage").toUpperCase(java.util.Locale.ROOT));
-    java.util.Map<java.awt.font.TextAttribute, Object> attrs = new java.util.HashMap<>();
-    attrs.put(java.awt.font.TextAttribute.TRACKING, 0.18f);
-    tabTitle.setFont(new Font("JetBrains Mono", Font.BOLD, 10).deriveFont(attrs));
-    tabTitle.setForeground(UIManager.getColor("Label.disabledForeground"));
-    tabTitle.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-    messageArea.setTabComponentAt(0, tabTitle);
+    messageArea.putClientProperty("FlatLaf.styleClass", "messageTabs");
+    messageArea.setTitleAt(0, _I("paneMessage").toUpperCase(java.util.Locale.ROOT));
+    messageArea.setFont(org.sikuli.ide.theme.OculixFonts.uiBold(12));
     messageArea.addMouseListener(new MouseListener() {
       @Override
       public void mouseClicked(MouseEvent me) {
