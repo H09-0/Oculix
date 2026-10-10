@@ -839,6 +839,10 @@ public class SXDialog extends JFrame {
           }
         }
 
+        if (item instanceof ImageItem && ((ImageItem) item).get() == null) {
+          Commons.error("SXDialog: image not found: %s", title);
+          item = null;
+        }
         if (item == null) {
           Commons.error("SXDialog: line ignored: %s", orgLine);
           continue;
@@ -2192,6 +2196,9 @@ public class SXDialog extends JFrame {
     }
 
     ImageItem(URL url) {
+      if (url == null) {
+        return;
+      }
       try {
         img = ImageIO.read(url);
       } catch (IOException e) {
