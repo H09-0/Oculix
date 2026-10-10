@@ -69,8 +69,8 @@ public class SSHTunnel implements Closeable {
         // Configure ciphers compatible with old servers (SUSE 12)
         session.setConfig("cipher.s2c", "aes128-ctr,aes128-cbc,3des-cbc,aes192-ctr,aes256-ctr");
         session.setConfig("cipher.c2s", "aes128-ctr,aes128-cbc,3des-cbc,aes192-ctr,aes256-ctr");
-        session.setConfig("mac.s2c", "hmac-sha2-256,hmac-sha1");
-        session.setConfig("mac.c2s", "hmac-sha2-256,hmac-sha1");
+        session.setConfig("mac.s2c", "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha1");
+        session.setConfig("mac.c2s", "hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha1");
 
         // Key exchange algorithms compatible with older servers
         session.setConfig("kex", "ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,"
