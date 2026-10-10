@@ -1073,8 +1073,16 @@ public class Finder implements Iterator<Match> {
         }
         if (!findInput.isPlainColor()) {
           if (findInput.hasMask()) {
+            // Mean removed under the mask: a flat area no longer passes for the template.
             Mat mask = findInput.getMask();
-            Imgproc.matchTemplate(mWhere, what, mResult, Imgproc.TM_CCORR_NORMED, mask);
+            if (mask.channels() > 1) {
+              // A multi-channel mask makes the masked TM_CCOEFF_NORMED return hundreds of
+              // infinite scores, the true match among them; one channel serves all three.
+              Mat single = new Mat();
+              Core.extractChannel(mask, single, 0);
+              mask = single;
+            }
+            Imgproc.matchTemplate(mWhere, what, mResult, Imgproc.TM_CCOEFF_NORMED, mask);
           } else {
             Imgproc.matchTemplate(mWhere, what, mResult, Imgproc.TM_CCOEFF_NORMED);
           }
@@ -1091,6 +1099,16 @@ public class Finder implements Iterator<Match> {
             Imgproc.matchTemplate(wherePlain, whatPlain, mResult, Imgproc.TM_SQDIFF_NORMED);
           }
           Core.subtract(Mat.ones(mResult.size(), CvType.CV_32F), mResult, mResult);
+        }
+        if (findInput.hasMask()) {
+          // A masked patch without signal divides by zero; NaN or +-inf would make
+          // minMaxLoc report a wrong location, and findAll would never purge it.
+          Core.patchNaNs(mResult, 0.0);
+          Mat outOfRange = new Mat();
+          Core.compare(mResult, new Scalar(1.0001), outOfRange, Core.CMP_GT);
+          mResult.setTo(new Scalar(0.0), outOfRange);
+          Core.compare(mResult, new Scalar(-1.0001), outOfRange, Core.CMP_LT);
+          mResult.setTo(new Scalar(0.0), outOfRange);
         }
       }
       return mResult;
@@ -1317,8 +1335,13 @@ public class Finder implements Iterator<Match> {
         int allPixel = (int) mask.size().area();
         int nonZeroPixel = Core.countNonZero(mask);
         if (nonZeroPixel != allPixel) {
+          // Only fully opaque pixels are compared: an anti-aliased edge keeps its own
+          // colour in the template but shows a blend with the background on screen.
           Mat maskMask = new Mat();
-          Imgproc.threshold(mask, maskMask, 0.0, 1.0, Imgproc.THRESH_BINARY);
+          Imgproc.threshold(mask, maskMask, 254.0, 1.0, Imgproc.THRESH_BINARY);
+          if (Core.countNonZero(maskMask) == 0) {
+            Imgproc.threshold(mask, maskMask, 0.0, 1.0, Imgproc.THRESH_BINARY);
+          }
           mask = Finder2.matMulti(maskMask, 3);
         } else {
           mask = new Mat();
