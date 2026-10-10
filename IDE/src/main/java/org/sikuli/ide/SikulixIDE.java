@@ -1265,6 +1265,9 @@ public class SikulixIDE extends JFrame {
   PaneContext lastContext = null;
 
   public PaneContext getActiveContext() {
+    if (tabs == null) {
+      return null;
+    }
     final int ix = tabs.getSelectedIndex();
     if (ix < 0 || ix >= contexts.size()) {
       return null;
@@ -2256,6 +2259,8 @@ public class SikulixIDE extends JFrame {
     }
 
     public void reparse() {
+      // Turning names into thumbnails and back changes how the code is shown, not the code.
+      boolean wasDirty = isDirty();
       pane.saveCaretPosition();
       if (getShowThumbs()) {
         doShowThumbs();
@@ -2263,6 +2268,7 @@ public class SikulixIDE extends JFrame {
         resetContentToText();
       }
       pane.restoreCaretPosition();
+      if (!wasDirty) notDirty();
     }
 
     private void doShowThumbs() {
@@ -2493,6 +2499,10 @@ public class SikulixIDE extends JFrame {
         error("readContent: from String (%s)", ex.getMessage());
         return false;
       }
+      pane.listenToDocument();
+      // The edits recorded so far belong to the document that was just replaced.
+      pane.getUndoRedo().getUndoManager().discardAllEdits();
+      updateUndoRedoStates();
       return true;
     }
   }

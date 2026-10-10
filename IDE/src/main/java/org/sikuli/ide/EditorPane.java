@@ -235,8 +235,22 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   public void loadContent(InputStreamReader isr) throws IOException {
     read(new BufferedReader(isr), null);
-    getDocument().addDocumentListener(new DirtyHandler());
-    getDocument().addUndoableEditListener(getUndoRedo());
+    listenToDocument();
+  }
+
+  private Document listenedDocument;
+
+  /**
+   * Hooks undo and the unsaved-changes marker onto the document the pane holds
+   * now, once per document. Every read() swaps in a fresh document; one that
+   * nobody listens to takes keystrokes that can neither be undone nor saved.
+   */
+  void listenToDocument() {
+    Document document = getDocument();
+    if (document == listenedDocument) return;
+    document.addDocumentListener(getDirtyHandler());
+    document.addUndoableEditListener(getUndoRedo());
+    listenedDocument = document;
   }
 
   EditorPaneUndoRedo getUndoRedo() {
