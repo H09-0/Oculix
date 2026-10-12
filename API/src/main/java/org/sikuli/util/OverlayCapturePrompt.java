@@ -318,6 +318,24 @@ public class OverlayCapturePrompt extends JFrame implements EventSubject {
     return rectSelected;
   }
 
+  /**
+   * The selection in global screen coordinates, without cropping any image. getSelectionRectangle()
+   * is relative to the screen this prompt covers until getSelectionImage() shifts it in place, so
+   * call this one before getSelectionImage(), never after. On the screen at (0, 0) both agree, which
+   * is why the difference only shows on a second monitor. A click without a drag never fills the
+   * selection, so it comes back as an empty rectangle at the clicked point.
+   *
+   * @return a new rectangle, the selection moved by the origin of this prompt's screen; width and
+   * height 0 at the clicked point when nothing was dragged
+   */
+  public Rectangle getSelectionOnScreen() {
+    Rectangle onScreen = startX == endX && startY == endY
+        ? new Rectangle(startX, startY, 0, 0)
+        : new Rectangle(rectSelected);
+    onScreen.translate(screen.x(), screen.y());
+    return onScreen;
+  }
+
   private BufferedImage cropSelection() {
     int w = rectSelected.width, h = rectSelected.height;
     if (w <= 0 || h <= 0) {
