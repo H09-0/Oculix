@@ -224,6 +224,7 @@ public class SikulixIDE extends JFrame {
     if (Sikulix.ideWithConsole) {
       get().messages = new EditorConsolePane();
     }
+    Commons.startLog(1, "IDE window + console (%4.1f)", Commons.getSinceStart());
     IDESupport.initRunners();
     Screen.getPrimaryScreen();
     Commons.startLog(1, "IDESupport ready --- GUI start (%4.1f)", Commons.getSinceStart());
