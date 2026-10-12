@@ -162,6 +162,9 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestEntries>
+                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
+                </manifestEntries>
                 <!-- Legerix keys its extraction cache on this manifest
                      section; only the Linux profile carried it, so the
                      Windows and macOS jars reported 5.5.0 instead of
@@ -210,6 +213,9 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestEntries>
+                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
+                </manifestEntries>
                 <manifestSections>
                   <manifestSection>
                     <name>io/github/julienmerconsulting/legerix/</name>
@@ -253,6 +259,9 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestEntries>
+                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
+                </manifestEntries>
                 <manifestSections>
                   <manifestSection>
                     <name>io/github/julienmerconsulting/legerix/</name>
@@ -296,6 +305,9 @@
                 <manifest>
                   <mainClass>org.sikuli.ide.Sikulix</mainClass>
                 </manifest>
+                <manifestEntries>
+                  <SplashScreen-Image>icons/splash_native.png</SplashScreen-Image>
+                </manifestEntries>
                 <manifestSections>
                   <manifestSection>
                     <name>io/github/julienmerconsulting/legerix/</name>
