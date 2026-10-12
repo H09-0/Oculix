@@ -12,7 +12,6 @@ import org.sikuli.script.SikuliXception;
 import org.sikuli.support.runner.IRunner;
 import org.sikuli.support.runner.Runner;
 import org.sikuli.support.Commons;
-import org.sikuli.support.gui.SXDialog;
 
 import com.formdev.flatlaf.FlatLaf;
 import org.sikuli.ide.theme.OculixDarkLaf;
@@ -31,9 +30,10 @@ import static org.sikuli.idesupport.CommandArgsEnum.*;
 
 public class Sikulix {
 
-  static SXDialog ideSplash = null;
+  static OculixSplash ideSplash = null;
   static int waitStart = 0;
 
+  /** Closes the start-up window, after the -w delay if one was given; harmless when already closed. */
   public static void stopSplash() {
     if (waitStart > 0) {
       try {
@@ -43,8 +43,8 @@ public class Sikulix {
     }
 
     if (ideSplash != null) {
-      ideSplash.setVisible(false);
-      ideSplash.dispose();
+      Commons.observeStartLog(null);
+      ideSplash.close();
       ideSplash = null;
     }
   }
@@ -237,9 +237,12 @@ public class Sikulix {
     } else {
       OculixDarkLaf.setup();
     }
+    Commons.startLog(1, "fonts + theme (%4.1f)", Commons.getSinceStart());
 
-    ideSplash = new SXDialog("sxidestartup", SikulixIDE.getWindowTop(), SXDialog.POSITION.TOP);
-    ideSplash.run();
+    ideSplash = new OculixSplash();
+    Commons.observeStartLog(ideSplash::status);
+    ideSplash.show();
+    Commons.startLog(1, "splash shown (%4.1f)", Commons.getSinceStart());
 
     if (Debug.isGlobalDebug()) {
       Commons.show();
@@ -323,6 +326,7 @@ public class Sikulix {
 
     // apple.laf.useScreenMenuBar removed — FlatLaf handles macOS menu integration natively
 
+    Commons.startLog(1, "lock + temp cleanup (%4.1f)", Commons.getSinceStart());
     SikulixIDE.start();
     //endregion
   }
