@@ -225,6 +225,7 @@ public class SikulixIDE extends JFrame {
       get().messages = new EditorConsolePane();
     }
     IDESupport.initRunners();
+    Screen.getPrimaryScreen();
     Commons.startLog(1, "IDESupport ready --- GUI start (%4.1f)", Commons.getSinceStart());
 
     sikulixIDE.startGUI();
@@ -862,6 +863,12 @@ public class SikulixIDE extends JFrame {
     return sub;
   }
 
+  /**
+   * The Tools submenu of the sidebar. Every entry that needs an open script is registered in
+   * scriptDependentItems, so it is greyed out on the Welcome tab.
+   *
+   * @return the submenu
+   */
   private SidebarSubmenu buildToolsSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
     scriptDependentItems.add(sub.addItem(_I("menuToolCapture"),
@@ -874,6 +881,16 @@ public class SikulixIDE extends JFrame {
     scriptDependentItems.add(sub.addItem(_I("btnInsertImageLabel"),
         new FlatSVGIcon("icons/menu/picture.svg", 16, 16), null,
         e -> btnInsertImage.actionPerformed(e)));
+    // Region, Location, Offset: named after the API objects they insert, never translated (#477).
+    scriptDependentItems.add(sub.addItem("Region",
+        new FlatSVGIcon("icons/menu/region.svg", 16, 16), null,
+        e -> btnSubregion.actionPerformed(e)));
+    scriptDependentItems.add(sub.addItem("Location",
+        new FlatSVGIcon("icons/menu/location.svg", 16, 16), null,
+        e -> btnLocation.actionPerformed(e)));
+    scriptDependentItems.add(sub.addItem("Offset",
+        new FlatSVGIcon("icons/menu/offset.svg", 16, 16), null,
+        e -> btnOffset.actionPerformed(e)));
     scriptDependentItems.add(sub.addItem(_I("menuToolRecord"),
         new FlatSVGIcon("icons/menu/red-dot.svg", 16, 16), null,
         e -> btnRecord.actionPerformed(e)));
@@ -4250,13 +4267,22 @@ public class SikulixIDE extends JFrame {
   // doesn't render the legacy top toolbar, so without this exposure the
   // Insert Image action becomes unreachable from the user's IDE chrome.
   private ButtonInsertImage btnInsertImage;
+  private ButtonSubregion btnSubregion;
+  private ButtonLocation btnLocation;
+  private ButtonOffset btnOffset;
 
+  /**
+   * Builds the legacy toolbar, which the sidebar UI no longer shows. Its buttons stay the action
+   * objects behind the Tools menu entries: Capture, Insert Image, Region, Location, Offset, Record.
+   *
+   * @return the toolbar, built but not displayed
+   */
   private JToolBar initToolbar() {
     JToolBar toolbar = new JToolBar();
     btnInsertImage = new ButtonInsertImage();
-    JButton btnSubregion = new ButtonSubregion();
-    JButton btnLocation = new ButtonLocation();
-    JButton btnOffset = new ButtonOffset();
+    btnSubregion = new ButtonSubregion();
+    btnLocation = new ButtonLocation();
+    btnOffset = new ButtonOffset();
 //TODO ButtonShow/ButtonShowIn
     JButton btnShow = new ButtonShow();
     JButton btnShowIn = new ButtonShowIn();
@@ -4344,17 +4370,29 @@ public class SikulixIDE extends JFrame {
       init();
     }
 
+    /**
+     * Hides the IDE, then opens the overlay, so the rectangle is drawn on the screen itself and not
+     * on top of the IDE window. The overlay waits for the screen to repaint before sampling it.
+     */
     @Override
     public void runAction(ActionEvent ae) {
       if (shouldRun()) {
+        if (SikulixIDE.notHidden()) {
+          SikulixIDE.doHide();
+        }
         OverlayCapturePrompt.capturePrompt(this, promptText);
       }
     }
 
+    /**
+     * Takes the selection in global screen coordinates, so a rectangle drawn on a second monitor
+     * gives that monitor's coordinates, then inserts the code. Escape or a right click inserts
+     * nothing; the IDE comes back either way.
+     */
     @Override
     public void update(EventSubject es) {
       OverlayCapturePrompt ocp = (OverlayCapturePrompt) es;
-      Rectangle selectedRectangle = ocp.getSelectionRectangle();
+      Rectangle selectedRectangle = ocp.isCanceled() ? null : ocp.getSelectionOnScreen();
       start = ocp.getStart();
       end = ocp.getEnd();
       ocp.close();
@@ -4363,10 +4401,16 @@ public class SikulixIDE extends JFrame {
       SikulixIDE.showAgain();
     }
 
+    /**
+     * Inserts Region(x, y, w, h) for the drawn rectangle. A click without a drag has no size and
+     * inserts nothing.
+     *
+     * @param selectedRectangle the selection in global screen coordinates, null when cancelled
+     */
     void captureComplete(Rectangle selectedRectangle) {
       int x, y, w, h;
       EditorPane codePane = getCurrentCodePane();
-      if (selectedRectangle != null) {
+      if (selectedRectangle != null && selectedRectangle.width > 0 && selectedRectangle.height > 0) {
         Rectangle roi = selectedRectangle;
         x = (int) roi.getX();
         y = (int) roi.getY();
@@ -4388,15 +4432,25 @@ public class SikulixIDE extends JFrame {
 
   class ButtonLocation extends ButtonSubregion {
 
+    /**
+     * Inserts Location(x, y), the clicked point or the centre of the drawn rectangle. The label stays "Location", the
+     * name of the API object; hint and prompt follow the IDE language.
+     */
     ButtonLocation() {
       super();
       buttonText = "Location";
-      buttonHint = "Location as center of selection";
+      buttonHint = SikulixIDE._I("btnLocationHint");
       iconFile = "/icons/region-icon.png";
-      promptText = "Select a Location";
+      promptText = SikulixIDE._I("msgLocationPrompt");
       init();
     }
 
+    /**
+     * Inserts Location(x, y): the clicked point after a simple click, the centre of the rectangle
+     * after a drag.
+     *
+     * @param selectedRectangle the selection in global screen coordinates, null when cancelled
+     */
     @Override
     public void captureComplete(Rectangle selectedRectangle) {
       int x, y, w, h;
@@ -4411,19 +4465,30 @@ public class SikulixIDE extends JFrame {
 
   class ButtonOffset extends ButtonSubregion {
 
+    /**
+     * Inserts Offset(dx, dy), the size of the drawn rectangle, negative when it was drawn towards the
+     * left or the top. The label stays "Offset", the name of the API object; hint and prompt follow
+     * the IDE language.
+     */
     ButtonOffset() {
       super();
       buttonText = "Offset";
-      buttonHint = "Offset as width/height of selection";
+      buttonHint = SikulixIDE._I("btnOffsetHint");
       iconFile = "/icons/region-icon.png";
-      promptText = "Select an Offset";
+      promptText = SikulixIDE._I("msgOffsetPrompt");
       init();
     }
 
+    /**
+     * Inserts Offset(dx, dy) from the drag, signed by its direction. A click without a drag moves
+     * nothing and inserts nothing.
+     *
+     * @param selectedRectangle the selection in global screen coordinates, null when cancelled
+     */
     @Override
     public void captureComplete(Rectangle selectedRectangle) {
       int x, y, ox, oy;
-      if (selectedRectangle != null) {
+      if (selectedRectangle != null && (selectedRectangle.width > 0 || selectedRectangle.height > 0)) {
         Rectangle roi = selectedRectangle;
         ox = (int) roi.getWidth();
         oy = (int) roi.getHeight();
