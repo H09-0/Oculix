@@ -278,7 +278,32 @@ public class Commons {
     }
   }
 
+  private static volatile java.util.function.Consumer<String> startLogObserver = null;
+
+  /**
+   * Lets one listener read every start-up line as it is written, before the debug level and the
+   * quiet flag decide whether it is printed; the IDE splash shows them. Null removes the listener.
+   *
+   * @param observer receives the formatted message, without the [DEBUG STARTUP] prefix
+   */
+  public static void observeStartLog(java.util.function.Consumer<String> observer) {
+    startLogObserver = observer;
+  }
+
+  /**
+   * Writes one line of the start-up log: level 3 always, lower levels only with global debug,
+   * nothing when quiet. The line also goes to the observer set by {@link #observeStartLog}.
+   *
+   * @param level 1 or 2 need global debug, 3 is always printed
+   * @param msg   format string
+   * @param args  its arguments
+   */
   public static void startLog(int level, String msg, Object... args) {
+    String line = String.format(msg, args);
+    java.util.function.Consumer<String> observer = startLogObserver;
+    if (observer != null) {
+      observer.accept(line);
+    }
     if (level < 3) {
       if (!Debug.isGlobalDebug()) {
         return;
@@ -287,7 +312,7 @@ public class Commons {
     if (Debug.isBeQuiet()) {
       return;
     }
-    System.out.println(String.format("[DEBUG STARTUP] " + msg, args));
+    System.out.println("[DEBUG STARTUP] " + line);
   }
   //</editor-fold>
 
