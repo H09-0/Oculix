@@ -3,7 +3,6 @@
  */
 package org.sikuli.ide;
 
-import com.formdev.flatlaf.util.UIScale;
 import org.sikuli.ide.theme.OculixFonts;
 import org.sikuli.support.Commons;
 
@@ -69,7 +68,14 @@ public final class OculixSplash {
       {697, 93, 792, 335}, {805, 98, 855, 335}, {859, 150, 1045, 335}};
   private static final double[] WORD = {200, 88, 1052, 340};
 
-  private final float scale = UIScale.getUserScaleFactor();
+  private final float scale = (float) (
+      1.0 / GraphicsEnvironment
+          .getLocalGraphicsEnvironment()
+          .getDefaultScreenDevice()
+          .getDefaultConfiguration()
+          .getDefaultTransform()
+          .getScaleX()
+  );
   private BufferedImage base;
 
   private Frame owner;
@@ -139,12 +145,11 @@ public final class OculixSplash {
   }
 
   /**
-   * Opens the window. When the Java launcher already shows the still splash of the manifest
-   * (SplashScreen-Image), this window takes its place at full opacity, so the hand-over does not
-   * blink, centred on the still image rather than on Java's idea of the screen centre: the launcher
-   * centres on the whole screen, taskbar included, Java on the work area. Otherwise it fades in.
-   * Its owner is an invisible utility frame: no taskbar entry on Windows, and the gecko instead of
-   * the Java cup wherever a desktop shows one anyway.
+   * Opens the animated splash centred on the default screen's full bounds.
+   * Uses an opaque window and paints the background at full opacity.
+   * When the native splash is still visible, starts at full content opacity;
+   * otherwise fades the content in.
+   * An invisible utility frame owns the window and carries the application icon.
    */
   private void build() {
     Rectangle nativeBounds = nativeSplashBounds();
@@ -156,23 +161,41 @@ public final class OculixSplash {
       owner.setIconImage(icon);
     }
     window = new JWindow(owner);
-    window.setBackground(new Color(0, 0, 0, 0));
+    window.setType(Window.Type.POPUP);
+    window.setFocusableWindowState(false);
+    window.setAutoRequestFocus(false);
+    window.setBackground(BG);
     panel = new JPanel() {
       @Override
       protected void paintComponent(Graphics g) {
         paintSplash((Graphics2D) g.create());
       }
     };
-    panel.setOpaque(false);
+    panel.setOpaque(true);
     panel.setPreferredSize(new Dimension(Math.round(D * scale), Math.round((D + FOOTER) * scale)));
     window.setContentPane(panel);
     window.pack();
-    if (nativeShown) {
-      window.setLocation(nativeBounds.x + (nativeBounds.width - window.getWidth()) / 2,
-          nativeBounds.y + (nativeBounds.height - window.getHeight()) / 2);
-    } else {
-      window.setLocationRelativeTo(null);
+    if (window.getGraphicsConfiguration().getDevice()
+        .isWindowTranslucencySupported(
+            java.awt.GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSPARENT)) {
+
+      window.setShape(new RoundRectangle2D.Double(
+          0, 0,
+          window.getWidth(), window.getHeight(),
+          28 * scale, 28 * scale
+      ));
     }
+    Rectangle screen = GraphicsEnvironment
+        .getLocalGraphicsEnvironment()
+        .getDefaultScreenDevice()
+        .getDefaultConfiguration()
+        .getBounds();
+
+    window.setLocation(
+        screen.x + (screen.width - window.getWidth()) / 2,
+        screen.y + (screen.height - window.getHeight()) / 2
+    );
+
     window.setAlwaysOnTop(true);
     long begin = System.currentTimeMillis();
     animationStart = begin;
@@ -250,8 +273,11 @@ public final class OculixSplash {
       g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
       g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
       g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-      g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
       g.scale(scale, scale);
+      g.setComposite(AlphaComposite.SrcOver);
+      g.setColor(BG);
+      g.fillRect(0, 0, D, D + FOOTER);
+      g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 
       long now = System.currentTimeMillis();
       if (now - animationStart > DURATION[animation]) {
