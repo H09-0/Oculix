@@ -52,6 +52,12 @@
           <exclude>linux-aarch64-legacy/**</exclude>
           <exclude>linux-arm/**</exclude>
           <exclude>win32-x86/**</exclude>
+          <exclude>META-INF/legerix/natives/darwin/**</exclude>
+          <exclude>META-INF/legerix/natives/darwin-aarch64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-x86-64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-x86-64-legacy/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-aarch64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-aarch64-legacy/**</exclude>
         </excludes>
       </unpackOptions>
       <includes>
