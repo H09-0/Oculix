@@ -58,7 +58,7 @@
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
 -->
     <apertix.opencv.version>4.14.0-0</apertix.opencv.version>
-    <legerix.version>5.5.0-8</legerix.version>
+    <legerix.version>5.5.2-2</legerix.version>
     <octachorix.version>1.0.0</octachorix.version>
     <timestamp>${maven.build.timestamp}</timestamp>
     <maven.build.timestamp.format>yyyy-MM-dd_HH:mm</maven.build.timestamp.format>
@@ -227,22 +227,6 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-              <archive>
-                <!-- Legerix keys its extraction cache on this manifest
-                     section; without it the Windows jar reported 5.5.0
-                     instead of ${legerix.version} and a payload bump
-                     would never invalidate the cache. Same block as the
-                     Linux profile. -->
-                <manifestSections>
-                  <manifestSection>
-                    <name>io/github/julienmerconsulting/legerix/</name>
-                    <manifestEntries>
-                      <Implementation-Title>Legerix</Implementation-Title>
-                      <Implementation-Version>${legerix.version}</Implementation-Version>
-                    </manifestEntries>
-                  </manifestSection>
-                </manifestSections>
-              </archive>
               <descriptors>
                 <descriptor>makeapi-win.xml</descriptor>
               </descriptors>
@@ -272,17 +256,6 @@
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.8.0</version>
             <configuration>
-              <archive>
-                <manifestSections>
-                  <manifestSection>
-                    <name>io/github/julienmerconsulting/legerix/</name>
-                    <manifestEntries>
-                      <Implementation-Title>Legerix</Implementation-Title>
-                      <Implementation-Version>${legerix.version}</Implementation-Version>
-                    </manifestEntries>
-                  </manifestSection>
-                </manifestSections>
-              </archive>
               <descriptors>
                 <descriptor>makeapi-mac.xml</descriptor>
               </descriptors>
@@ -318,15 +291,6 @@
                   <mainClass>org.sikuli.script.SX</mainClass>
                 </manifest>
 -->
-                <manifestSections>
-                  <manifestSection>
-                    <name>io/github/julienmerconsulting/legerix/</name>
-                    <manifestEntries>
-                      <Implementation-Title>Legerix</Implementation-Title>
-                      <Implementation-Version>${legerix.version}</Implementation-Version>
-                    </manifestEntries>
-                  </manifestSection>
-                </manifestSections>
               </archive>
               <descriptors>
                 <descriptor>makeapi-lux.xml</descriptor>
