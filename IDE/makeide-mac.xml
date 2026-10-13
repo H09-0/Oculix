@@ -50,6 +50,11 @@
           <exclude>linux-arm/**</exclude>
           <exclude>win32-x86/**</exclude>
           <exclude>win32-x86-64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-x86-64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-x86-64-legacy/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-aarch64/**</exclude>
+          <exclude>META-INF/legerix/natives/linux-aarch64-legacy/**</exclude>
+          <exclude>META-INF/legerix/natives/win32-x86-64/**</exclude>
         </excludes>
       </unpackOptions>
       <includes>
