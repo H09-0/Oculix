@@ -37,8 +37,8 @@ dependencies and extracts them to a per-user cache on first use:
 
 | Library | Provider | Version |
 | --- | --- | --- |
-| OpenCV | [Apertix](https://github.com/oculix-org/Apertix) | 4.10.0-3 |
-| Tesseract + Leptonica + 5 language models | [Legerix](https://github.com/oculix-org/Legerix) | 5.5.0-8 |
+| OpenCV | [Apertix](https://github.com/oculix-org/Apertix) | 4.14.0-0 |
+| Tesseract + Leptonica + 5 language models | [Legerix](https://github.com/oculix-org/Legerix) | 5.5.2-2 |
 
 Windows, macOS (Intel and Apple Silicon) and Linux (x86_64 and aarch64, two
 glibc tiers) are covered. PaddleOCR is available as an opt-in HTTP service for
