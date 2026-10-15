@@ -143,10 +143,11 @@ public class SXDialogPaneImage extends SXDialogIDE {
     // "As Pattern" is an in-place promotion — no new window. The image
     // stays the same image; the surrounding code is what becomes a
     // Pattern call. Effect:
-    //   - green "85" badge is drawn at the bottom-right of the button
-    //     (visible feedback that the promotion happened)
-    //   - on next save, the button serializes as
-    //     Pattern("foo.png").similar(0.85) instead of "foo.png"
+    //   - green "70" badge (the default similarity) is drawn at the
+    //     bottom-right of the button (visible feedback that the promotion
+    //     happened)
+    //   - on next save, the button serializes as Pattern("foo.png")
+    //     instead of "foo.png", with no .similar() at the default 0.7
     //   - re-clicking "As Pattern" is idempotent
     // To tune the similarity / offset, the user clicks "Optimize" which
     // is the dedicated multi-tab editor.
