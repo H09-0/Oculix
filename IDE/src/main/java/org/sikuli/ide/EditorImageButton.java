@@ -260,16 +260,6 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
   private Location _offset = null;
 
   /**
-   * Promote this plain image button to a Pattern with a fixed non-default
-   * similarity. Visible feedback: green badge ("85") drawn at the
-   * bottom-right corner. Code-level effect: next File ▸ Save serializes
-   * the surrounding call as {@code Pattern("foo.png").similar(0.85)}
-   * instead of {@code "foo.png"}.
-   *
-   * <p>Idempotent — re-clicking "As Pattern" on an already-promoted button
-   * is a no-op.
-   */
-  /**
    * True once the user has explicitly promoted this image to a Pattern via
    * the right-click menu or via Optimize Apply. Read by
    * {@link org.sikuli.support.gui.SXDialogPaneImageMenu} to hide the
@@ -280,6 +270,17 @@ public class EditorImageButton extends JButton implements ActionListener, Serial
     return _isPattern;
   }
 
+  /**
+   * Promote this plain image button to a Pattern at the default similarity
+   * {@link #AS_PATTERN_DEFAULT_SIMILAR} (0.7). Visible feedback: green
+   * badge ("70") drawn at the bottom-right corner. Code-level effect: next
+   * File ▸ Save serializes the surrounding call as
+   * {@code Pattern("foo.png")} instead of {@code "foo.png"}, with no
+   * {@code .similar(...)} since the value is the default.
+   *
+   * <p>Idempotent — re-clicking "As Pattern" on an already-promoted button
+   * is a no-op.
+   */
   public void promoteToPattern() {
     if (_isPattern) return;
     _isPattern = true;
