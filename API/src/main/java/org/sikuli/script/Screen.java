@@ -536,7 +536,7 @@ public class Screen extends Region implements IScreen, EventObserver {
   @Override
   public ScreenImage capture() {
     ScreenDevice screenDevice = ScreenDevice.get(getID());
-    return new ScreenImage(screenDevice.asRectangle(), screenDevice.capture());
+    return new ScreenImage(screenDevice.asRectangle(), screenDevice.capture(), ScreenImage.LOGICAL_DPI);
   }
 
   /**
@@ -562,7 +562,7 @@ public class Screen extends Region implements IScreen, EventObserver {
   @Override
   public ScreenImage capture(Rectangle rect) {
     lastCaptureTime = new Date().getTime();
-    ScreenImage simg = new ScreenImage(rect, ScreenDevice.capture(rect)); //globalRobot.captureScreen(rect);
+    ScreenImage simg = new ScreenImage(rect, ScreenDevice.capture(rect), ScreenImage.LOGICAL_DPI);
     if (Settings.FindProfiling) {
       Debug.logp("[FindProfiling] Screen.capture [%d x %d]: %d msec",
           rect.width, rect.height, new Date().getTime() - lastCaptureTime);
