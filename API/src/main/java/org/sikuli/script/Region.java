@@ -667,7 +667,7 @@ public class Region extends Element {
           this.w = wb.width;
           this.h = wb.height;
           return new ScreenImage(new Rectangle(wb.x, wb.y, wb.width, wb.height),
-              nativeImg);
+              nativeImg, ScreenImage.LOGICAL_DPI);
         }
         // ROI path: crop the requested slice from the full-window bitmap so
         // Match coordinates stay in the caller's coord space. Used by every
@@ -684,7 +684,7 @@ public class Region extends Element {
               && localH == nativeImg.getHeight())
               ? nativeImg
               : nativeImg.getSubimage(localX, localY, localW, localH);
-          return new ScreenImage(new Rectangle(cx, cy, cw, ch), sub);
+          return new ScreenImage(new Rectangle(cx, cy, cw, ch), sub, ScreenImage.LOGICAL_DPI);
         }
       }
     }
