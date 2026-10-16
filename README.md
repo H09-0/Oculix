@@ -184,11 +184,14 @@ Banking, industry, cybersecurity, healthcare, transport, research: the environme
 
 A workflow to automate, a limit to push, an integration to share? **[Open a discussion](https://github.com/oculix-org/Oculix/discussions). Your use case can become the next step forward for OculiX.**
 
-### Community projects
+### Community projects & integrations
 
 | Project | What it adds |
 |---|---|
 | [**oculix-vscode**](https://github.com/MiguelDomingues/oculix-vscode) by [@MiguelDomingues](https://github.com/MiguelDomingues) | Region capture, inline image previews, target offsets, interactive template-matching tests and script execution from VS Code, using the OculiX runtime JAR. |
+| [**SHAFT Engine**](https://github.com/ShaftHQ/SHAFT_ENGINE) `shaft-sikulix` module by [@MohabMohie](https://github.com/MohabMohie) | Optional desktop image automation for the SHAFT test framework, built on OculiX and published on Maven Central (`io.github.shafthq:shaft-sikulix`). |
+| [**PandoraFMS Oculix plugin**](https://marketplace.pandorafms.com/entries/pandorafms.oculix) by [Pandora FMS](https://pandorafms.com) | Runs OculiX scripts as monitored multi-phase transactions (login, search, logout…) with full-transaction retries, and reports status, timing, last screenshot and baseline diffs as Pandora FMS modules. Available to Pandora FMS licensed users. |
+| [**MIDI Automator**](https://github.com/angeloBerlin/MIDI-Automator) by [@angeloBerlin](https://github.com/angeloBerlin) | Desktop tool for musicians on stage: MIDI messages trigger set-list changes, clicks and key strokes, with OculiX finding buttons on screen by image. Native on Apple Silicon Macs. |
 
 ## Help and contribute
 
