@@ -11,6 +11,11 @@ import org.sikuli.basics.Settings;
 import org.sikuli.support.Commons;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.stream.ImageInputStream;
+import org.w3c.dom.Node;
+import org.w3c.dom.NamedNodeMap;
 import java.awt.*;
 import java.awt.image.*;
 import java.io.File;
@@ -114,6 +119,7 @@ public class Image extends Element {
     imgTarget.setIsText(imageIsText);
     imgTarget.setIsBundled(imageIsBundled);
     imgTarget.setLastSeen(getLastSeen(), getLastSeenScore());
+    imgTarget.setCaptureDpi(captureDpi);
     imgTarget.setHasIOException(hasIOException());
     if (isPattern()) {
       imgTarget.setSimilarity(similarity);
@@ -170,7 +176,7 @@ public class Image extends Element {
    */
   public Image(ScreenImage img) {
     this(img.getImage(), null);
-    injectSystemDpi();
+    captureDpi = img.getCaptureDpi();
   }
 
   /**
@@ -183,22 +189,7 @@ public class Image extends Element {
    */
   public Image(ScreenImage img, String name) {
     this(img.getImage(), name);
-    injectSystemDpi();
-  }
-
-  private void injectSystemDpi() {
-    try {
-      java.awt.GraphicsDevice gd = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
-          .getDefaultScreenDevice();
-      double scale = gd.getDefaultConfiguration().getDefaultTransform().getScaleX();
-      this.captureDpi = (int) Math.round(96 * scale);
-    } catch (Exception e) {
-      try {
-        this.captureDpi = java.awt.Toolkit.getDefaultToolkit().getScreenResolution();
-      } catch (Exception e2) {
-        this.captureDpi = 96;
-      }
-    }
+    captureDpi = img.getCaptureDpi();
   }
 
   /**
@@ -350,7 +341,7 @@ public class Image extends Element {
   private BufferedImage bimg = null;
   private int bsize = 0;
 
-  // OculiX: DPI at which this image was captured (-1 = unknown)
+  // Bitmap density: local logical captures use 96; raw/remote images may be unknown.
   private int captureDpi = -1;
 
   public int getCaptureDpi() {
@@ -359,6 +350,93 @@ public class Image extends Element {
 
   public void setCaptureDpi(int dpi) {
     this.captureDpi = dpi;
+  }
+
+  /** Resolves the bitmap's density on demand, without consulting the desktop. */
+  int getBitmapDpi() {
+    if (captureDpi > 0) {
+      return captureDpi;
+    }
+    String filename = getFilename();
+    if (filename == null) {
+      return -1;
+    }
+    File file = new File(filename);
+    if (!file.isFile()) {
+      return -1;
+    }
+    try (ImageInputStream input = ImageIO.createImageInputStream(file)) {
+      if (input == null) {
+        return -1;
+      }
+      Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
+      if (!readers.hasNext()) {
+        return -1;
+      }
+      ImageReader reader = readers.next();
+      try {
+        reader.setInput(input);
+        IIOMetadata metadata = reader.getImageMetadata(0);
+        if (metadata != null) {
+          for (String format : metadata.getMetadataFormatNames()) {
+            int dpi = searchDpiInNode(metadata.getAsTree(format));
+            if (dpi > 0) {
+              return dpi;
+            }
+          }
+        }
+      } finally {
+        reader.dispose();
+      }
+    } catch (Exception e) {
+      Debug.log(3, "Image::getBitmapDpi: %s", e.getMessage());
+    }
+    return -1;
+  }
+
+  /**
+   * Recursively walks the XML metadata tree to find the
+   * horizontal resolution (DPI).
+   */
+  private static int searchDpiInNode(Node node) {
+    if (node == null) {
+      return -1;
+    }
+    // Look in pHYs (PNG) or HorizontalPixelSize nodes
+    String nodeName = node.getNodeName();
+    if ("pHYs".equals(nodeName)) {
+      NamedNodeMap attrs = node.getAttributes();
+      if (attrs != null) {
+        Node ppux = attrs.getNamedItem("pixelsPerUnitXAxis");
+        Node unit = attrs.getNamedItem("unitSpecifier");
+        if (ppux != null && unit != null && "meter".equals(unit.getNodeValue())) {
+          int ppu = Integer.parseInt(ppux.getNodeValue());
+          return (int) Math.round(ppu / 39.3701); // metres to inches
+        }
+      }
+    }
+    if ("HorizontalPixelSize".equals(nodeName)) {
+      NamedNodeMap attrs = node.getAttributes();
+      if (attrs != null) {
+        Node val = attrs.getNamedItem("value");
+        if (val != null) {
+          double mmPerPixel = Double.parseDouble(val.getNodeValue());
+          if (mmPerPixel > 0) {
+            return (int) Math.round(25.4 / mmPerPixel);
+          }
+        }
+      }
+    }
+    // Recurse into children
+    Node child = node.getFirstChild();
+    while (child != null) {
+      int dpi = searchDpiInNode(child);
+      if (dpi > 0) {
+        return dpi;
+      }
+      child = child.getNextSibling();
+    }
+    return -1;
   }
 
   /**
@@ -1156,7 +1234,7 @@ public class Image extends Element {
   public String save(String name, String path) {
     File fImg = new File(path, name);
     try {
-      FileManager.writePngWithDpi(get(), fImg);
+      FileManager.writePngWithDpi(get(), fImg, getBitmapDpi());
       Debug.log(3, "Image::save: %s", fImg);
     } catch (IOException e) {
       Debug.error("Image::save: %s did not work (%s)", fImg, e.getMessage());
@@ -1166,7 +1244,7 @@ public class Image extends Element {
 
   public void save(File imgFile) {
     try {
-      FileManager.writePngWithDpi(get(), imgFile);
+      FileManager.writePngWithDpi(get(), imgFile, getBitmapDpi());
       Debug.log(3, "Image(%s)::save: %s", getName(), imgFile);
     } catch (IOException e) {
       Debug.error("Image(%s)::save: %s did not work (%s)", getName(), imgFile, e.getMessage());
