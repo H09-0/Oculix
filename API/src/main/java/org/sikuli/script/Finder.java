@@ -12,17 +12,9 @@ import org.sikuli.support.devices.IScreen;
 
 import java.awt.Color;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.util.*;
 import java.util.regex.Matcher;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.stream.ImageInputStream;
-import org.w3c.dom.Node;
-import org.w3c.dom.NamedNodeMap;
 
 public class Finder implements Iterator<Match> {
 
@@ -72,9 +64,13 @@ public class Finder implements Iterator<Match> {
     if (inWhat instanceof Region) {
       where = (Region) inWhat;
     } else if (inWhat instanceof Image) {
-      _findInput.setSource(Commons.makeMat(((Image) inWhat).get()));
+      Image sourceImage = (Image) inWhat;
+      _findInput.setSource(Commons.makeMat(sourceImage.get()));
+      _findInput.sourceImage = sourceImage;
     } else if (inWhat instanceof String) {
-      _findInput.setSource(Commons.makeMat(Image.create((String) inWhat).get()));
+      Image sourceImage = Image.create((String) inWhat);
+      _findInput.setSource(Commons.makeMat(sourceImage.get()));
+      _findInput.sourceImage = sourceImage;
     } else if (inWhat instanceof BufferedImage) {
       _findInput.setSource(Commons.makeMat(((BufferedImage) inWhat)));
     } else if (inWhat instanceof ScreenImage) {
@@ -105,6 +101,7 @@ public class Finder implements Iterator<Match> {
 
   protected void setScreenImage(ScreenImage simg) {
     _findInput.setSource(Commons.makeMat(simg.getImage()));
+    _findInput.sourceDpi = simg.getCaptureDpi();
   }
 
   private void initMatFinder(Mat mat) {
@@ -602,145 +599,32 @@ public class Finder implements Iterator<Match> {
     // OculiX: read DPI from PNG metadata
     // ========================================================
 
-    /**
-     * Reads the horizontal DPI embedded in a PNG image's metadata.
-     * Returns -1 if unavailable.
-     */
-    private static int getDpiFromImage(Image img) {
-      if (img == null || img.getFilename() == null) {
-        return -1;
-      }
-      try {
-        File file = new File(img.getFilename());
-        if (!file.exists()) {
-          return -1;
-        }
-        ImageInputStream iis = ImageIO.createImageInputStream(file);
-        if (iis == null) {
-          return -1;
-        }
-        Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
-        if (!readers.hasNext()) {
-          iis.close();
-          return -1;
-        }
-        ImageReader reader = readers.next();
-        reader.setInput(iis);
-        IIOMetadata metadata = reader.getImageMetadata(0);
-        if (metadata == null) {
-          iis.close();
-          return -1;
-        }
-        // Walk the standard metadata formats looking for DPI
-        String[] formatNames = metadata.getMetadataFormatNames();
-        for (String formatName : formatNames) {
-          Node root = metadata.getAsTree(formatName);
-          int dpi = searchDpiInNode(root);
-          if (dpi > 0) {
-            iis.close();
-            return dpi;
-          }
-        }
-        iis.close();
-      } catch (Exception e) {
-        log.trace("getDpiFromImage: DPI read error: %s", e.getMessage());
-      }
-      return -1;
+    /** Density of these pixels, never that of the desktop loading them. */
+    private static int getImageDpi(Image image) {
+      return image == null ? -1 : image.getBitmapDpi();
     }
 
     /**
-     * Recursively walks the XML metadata tree to find the
-     * horizontal resolution (DPI).
-     */
-    private static int searchDpiInNode(Node node) {
-      if (node == null) {
-        return -1;
-      }
-      // Look in pHYs (PNG) or HorizontalPixelSize nodes
-      String nodeName = node.getNodeName();
-      if ("pHYs".equals(nodeName)) {
-        NamedNodeMap attrs = node.getAttributes();
-        if (attrs != null) {
-          Node ppux = attrs.getNamedItem("pixelsPerUnitXAxis");
-          Node unit = attrs.getNamedItem("unitSpecifier");
-          if (ppux != null && unit != null && "meter".equals(unit.getNodeValue())) {
-            int ppu = Integer.parseInt(ppux.getNodeValue());
-            return (int) Math.round(ppu / 39.3701); // metres to inches
-          }
-        }
-      }
-      if ("HorizontalPixelSize".equals(nodeName)) {
-        NamedNodeMap attrs = node.getAttributes();
-        if (attrs != null) {
-          Node val = attrs.getNamedItem("value");
-          if (val != null) {
-            double mmPerPixel = Double.parseDouble(val.getNodeValue());
-            if (mmPerPixel > 0) {
-              return (int) Math.round(25.4 / mmPerPixel);
-            }
-          }
-        }
-      }
-      // Recurse into children
-      Node child = node.getFirstChild();
-      while (child != null) {
-        int dpi = searchDpiInNode(child);
-        if (dpi > 0) {
-          return dpi;
-        }
-        child = child.getNextSibling();
-      }
-      return -1;
-    }
-
-    /**
-     * Returns the current system DPI.
-     * 96 = 100% scaling, 120 = 125%, 144 = 150%, etc.
-     */
-    private static int getSystemDpi() {
-      try {
-        java.awt.GraphicsDevice gd = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
-            .getDefaultScreenDevice();
-        double scale = gd.getDefaultConfiguration().getDefaultTransform().getScaleX();
-        return (int) Math.round(96 * scale);
-      } catch (Exception e) {
-        try {
-          return Toolkit.getDefaultToolkit().getScreenResolution();
-        } catch (Exception e2) {
-          return 96; // default
-        }
-      }
-    }
-
-    /**
-     * Computes the DPI ratio between the current screen and the template image.
-     * Returns 1.0 if there is no difference or if either DPI is unavailable.
+     * Local Robot/PrintWindow captures are already normalized to logical pixels,
+     * including composites across monitors with different device scales. Their
+     * density is carried by ScreenImage; applying any monitor's DPI here would
+     * scale them a second time. Remote/raw bitmaps with no density skip Mode 2.
+     * oPLx is only a lastSeen hint and does not describe the template's DPI.
      */
     private static double getDpiRatio(FindInput2 findInput) {
-      int screenDpi = getSystemDpi();
-      int templateDpi = -1;
-
-      // 1. In-memory DPI from Image object (set at capture time)
-      Image targetImg = findInput.getTargetImage();
-      if (targetImg != null && targetImg.getCaptureDpi() > 0) {
-        templateDpi = targetImg.getCaptureDpi();
-      }
-
-      // 2. Fallback: read DPI from PNG metadata (pHYs chunk)
-      if (templateDpi <= 0) {
-        templateDpi = getDpiFromImage(targetImg);
-      }
-
-      // 3. Fallback: assume 96 DPI (legacy templates, 100% scaling)
-      if (templateDpi <= 0) {
-        templateDpi = 96;
-      }
-
-      if (screenDpi == templateDpi) {
+      // Read file metadata only if the exact-match fast path reached Mode 2.
+      int sourceDpi = findInput.sourceImage != null
+          ? getImageDpi(findInput.sourceImage) : findInput.sourceDpi;
+      if (sourceDpi <= 0) {
         return 1.0;
       }
-      double ratio = (double) screenDpi / templateDpi;
-      log.trace("OculiX DPI-aware: template=%d dpi, screen=%d dpi, ratio=%.4f", templateDpi, screenDpi, ratio);
+      int templateDpi = getImageDpi(findInput.getTargetImage());
+      if (templateDpi <= 0) {
+        templateDpi = ScreenImage.LOGICAL_DPI; // legacy untagged templates
+      }
+      double ratio = (double) sourceDpi / templateDpi;
+      log.trace("OculiX DPI-aware: template=%d dpi, source=%d dpi, ratio=%.4f",
+          templateDpi, sourceDpi, ratio);
       return ratio;
     }
 
@@ -1022,7 +906,8 @@ public class Finder implements Iterator<Match> {
       }
       // --- MODE 5: multi-scale brute-force (last resort) ---
       if (findResult == null && !findInput.isFindAll() && !findInput.hasMask()) {
-        double[] commonScales = {1.25, 1.5, 1.75, 2.0, 0.8, 0.67, 0.5};
+        // Keep existing scales first; large application zooms are the final attempts.
+        double[] commonScales = {1.25, 1.5, 1.75, 2.0, 0.8, 0.67, 0.5, 2.5, 3.0, 4.0};
         begin_lap = new Date().getTime();
         for (double scale : commonScales) {
           if (findInput.stopRequested()) {
@@ -1529,9 +1414,13 @@ public class Finder implements Iterator<Match> {
     }
 
     private Mat source = null;
+    private int sourceDpi = -1;
+    private Image sourceImage = null;
 
     public void setSource(Mat source) {
       this.source = source;
+      this.sourceDpi = -1;
+      this.sourceImage = null;
     }
 
     public Mat getBase() {
