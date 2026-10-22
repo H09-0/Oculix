@@ -85,7 +85,6 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     UIManager.put("Tree.paintLines", true);
     projectTree = new JTree();
     projectTree.putClientProperty("JTree.lineStyle", "Angled");
-    projectTree.putClientProperty(FlatClientProperties.STYLE, "paintLines: true; showCellFocusBorder: false");
     projectTree.setOpaque(false);
     projectTree.setRootVisible(true);
     projectTree.setShowsRootHandles(true);
