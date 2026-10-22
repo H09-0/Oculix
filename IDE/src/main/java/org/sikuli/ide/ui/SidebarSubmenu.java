@@ -20,6 +20,7 @@ public class SidebarSubmenu extends JPopupMenu {
 
   private final JPanel menuPanel;
   private final JScrollPane scrollPane;
+  private java.awt.event.MouseListener hoverListener;
 
   public SidebarSubmenu() {
     setLightWeightPopupEnabled(true);
@@ -54,6 +55,9 @@ public class SidebarSubmenu extends JPopupMenu {
       item.addMouseWheelListener(e -> {
         scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(item, e, scrollPane));
       });
+      if (hoverListener != null) {
+        item.addMouseListener(hoverListener);
+      }
       menuPanel.add(item);
     }
     return item;
@@ -68,6 +72,9 @@ public class SidebarSubmenu extends JPopupMenu {
       comp.addMouseWheelListener(e -> {
         scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(comp, e, scrollPane));
       });
+      if (hoverListener != null) {
+        comp.addMouseListener(hoverListener);
+      }
       menuPanel.add(comp);
     }
     return comp;
@@ -97,6 +104,17 @@ public class SidebarSubmenu extends JPopupMenu {
   @Override
   public Component[] getComponents() {
     return menuPanel != null ? menuPanel.getComponents() : new Component[0];
+  }
+
+  public void attachHoverListener(java.awt.event.MouseListener listener) {
+    this.hoverListener = listener;
+    addMouseListener(listener);
+    menuPanel.addMouseListener(listener);
+    scrollPane.addMouseListener(listener);
+    scrollPane.getViewport().addMouseListener(listener);
+    for (Component c : menuPanel.getComponents()) {
+      c.addMouseListener(listener);
+    }
   }
 
   public JMenuItem addItem(String text, Icon icon, KeyStroke accelerator, ActionListener action) {

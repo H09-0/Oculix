@@ -636,26 +636,28 @@ public class SikulixIDE extends JFrame {
     newHeader.setEnabled(false);
     newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(newHeader);
-    sub.addItem(_I("cmdScript"),
+    sub.addItem(_I("menuFileNewFile"),
         new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
         e -> { createEmptyScriptContext(); });
-    sub.addItem(_I("cmdWorkspace"),
+    sub.addItem(_I("menuFileNewProject"),
         new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
-        null, e -> openNewWorkspaceDialog());
+        KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, InputEvent.SHIFT_DOWN_MASK | scMask),
+        e -> openNewWorkspaceDialog());
 
     // ── Ouvrir ──
     JMenuItem openHeader = new JMenuItem(_I("menuFileOpen"));
     openHeader.setEnabled(false);
     openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
     sub.add(openHeader);
-    sub.addItem(_I("cmdScript"),
+    sub.addItem(_I("menuFileOpenFile"),
         new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
         e -> { File f = selectFileToOpen(); if (f != null) createFileContext(f); });
-    sub.addItem(_I("cmdWorkspace"),
+    sub.addItem(_I("menuFileOpenProjectFolder"),
         new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
-        null, e -> openExistingWorkspace());
+        KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, InputEvent.SHIFT_DOWN_MASK | scMask),
+        e -> openExistingWorkspace());
 
     sub.addSeparator();
 
@@ -855,6 +857,21 @@ public class SikulixIDE extends JFrame {
         SwingUtilities.updateComponentTreeUI(w);
         w.revalidate();
         w.repaint();
+      }
+    }
+  }
+
+  /**
+   * Updates font family and font size across all open editor panes in real time.
+   */
+  public void updateEditorFonts() {
+    PreferencesUser pref = PreferencesUser.get();
+    Font font = new Font(pref.getFontName(), Font.PLAIN, pref.getFontSize());
+    for (PaneContext ctx : contexts) {
+      if (ctx != null && ctx.getPane() != null) {
+        ctx.getPane().setFont(font);
+        ctx.getPane().revalidate();
+        ctx.getPane().repaint();
       }
     }
   }
@@ -1172,7 +1189,7 @@ public class SikulixIDE extends JFrame {
     context.create();
   }
 
-  void createFileContext(File file) {
+  public void createFileContext(File file) {
     hideWelcomeTab();
     final int pos = alreadyOpen(file);
     if (pos >= 0) {
@@ -2619,14 +2636,14 @@ public class SikulixIDE extends JFrame {
   private File currentWorkspaceDir = null;
   private String currentWorkspaceName = "Workspace";
 
-  private void openNewWorkspaceDialog() {
+  public void openNewWorkspaceDialog() {
     File dir = WorkspaceDialog.showDialog(ideWindow);
     if (dir != null) {
       loadWorkspace(dir);
     }
   }
 
-  private void openExistingWorkspace() {
+  public void openExistingWorkspace() {
     JFileChooser chooser = new JFileChooser();
     chooser.setDialogTitle(_I("workspaceOpenDialogTitle"));
     chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -2671,47 +2688,64 @@ public class SikulixIDE extends JFrame {
       currentWorkspaceName = dir.getName();
     }
 
-    // Update explorer header
+    // Update explorer with the project folder (VS Code-style Project File Tree)
     if (explorer != null) {
-      explorer.setWorkspaceName(currentWorkspaceName);
+      explorer.loadProjectFolder(dir);
+    }
+    if (editorSplit != null) {
+      editorSplit.setDividerLocation(240);
     }
 
-    // Discover scripts in the workspace directory. Three layouts supported:
-    //   1. dir/foo.sikuli/foo.py        — classic SikuliX bundle
-    //   2. dir/foo/foo.py               — plain folder bundle (modern OculiX
-    //      convention since the recorder writes there)
-    //   3. dir/foo.py                   — single script at the root (the
-    //      user opened a single-script bundle as a "workspace", common
-    //      mistake but still useful UX-wise)
-    int loaded = 0;
+    // Open ONLY the primary/first script if no scripts are currently open,
+    // avoiding the tab clutter of opening every file as an open tab.
+    if (contexts.isEmpty()) {
+      File primary = findPrimaryScript(dir);
+      if (primary != null) {
+        createFileContext(primary);
+      }
+    }
+
+    refreshWorkspace();
+    log("Workspace loaded: %s (%s)", currentWorkspaceName, dir.getAbsolutePath());
+  }
+
+  public void collapseExplorer() {
+    if (editorSplit != null) {
+      editorSplit.setDividerLocation(0);
+    }
+  }
+
+  public void setWorkspaceDir(File dir) {
+    this.currentWorkspaceDir = dir;
+  }
+
+  private File findPrimaryScript(File dir) {
+    if (dir == null || !dir.isDirectory()) return null;
+    File mainPy = new File(dir, "main.py");
+    if (mainPy.exists()) return mainPy;
+
     File[] children = dir.listFiles();
     if (children != null) {
       for (File child : children) {
-        try {
-          if (child.isDirectory()) {
-            // Either a .sikuli bundle or a plain folder with a .py inside.
-            File[] pyFiles = child.listFiles((d, name) -> name.endsWith(".py"));
-            if (pyFiles != null && pyFiles.length > 0) {
-              createFileContext(child);
-              loaded++;
-            } else {
-              log("Workspace: skipping folder %s (no .py)", child.getName());
-            }
-          } else if (child.getName().endsWith(".py")) {
-            // Single-script case (3): open the .py directly.
-            createFileContext(child);
-            loaded++;
+        if (child.isDirectory() && child.getName().endsWith(".sikuli")) {
+          return child;
+        }
+      }
+      for (File child : children) {
+        if (!child.isDirectory() && child.getName().endsWith(".py")) {
+          return child;
+        }
+      }
+      for (File child : children) {
+        if (child.isDirectory() && !child.getName().startsWith(".")) {
+          File[] pyFiles = child.listFiles((d, name) -> name.endsWith(".py"));
+          if (pyFiles != null && pyFiles.length > 0) {
+            return child;
           }
-        } catch (Exception e) {
-          log("Workspace: error loading %s: %s", child.getName(), e.getMessage());
         }
       }
     }
-    log("Workspace: %d script(s) loaded from %s", loaded, dir.getAbsolutePath());
-
-    refreshWorkspace();
-
-    log("Workspace loaded: %s (%s)", currentWorkspaceName, dir.getAbsolutePath());
+    return null;
   }
 
   public File getCurrentWorkspaceDir() {
@@ -2890,24 +2924,24 @@ public class SikulixIDE extends JFrame {
 
     // ── Nouveau ──
     _fileMenu.add(createSectionLabel(_I("menuFileNew")));
-    _fileMenu.add(createMenuItem("Script",
+    _fileMenu.add(createMenuItem(_I("menuFileNewFile"),
             new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
             new FileAction(FileAction.NEW)));
-    _fileMenu.add(createMenuItem("Workspace",
+    _fileMenu.add(createMenuItem(_I("menuFileNewProject"),
             new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
-            null,
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, InputEvent.SHIFT_DOWN_MASK | scMask),
             e -> openNewWorkspaceDialog()));
 
     // ── Ouvrir ──
     _fileMenu.add(createSectionLabel(_I("menuFileOpen")));
-    _fileMenu.add(createMenuItem("Script",
+    _fileMenu.add(createMenuItem(_I("menuFileOpenFile"),
             new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
             new FileAction(FileAction.OPEN)));
-    _fileMenu.add(createMenuItem("Workspace",
+    _fileMenu.add(createMenuItem(_I("menuFileOpenProjectFolder"),
             new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16),
-            null,
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, InputEvent.SHIFT_DOWN_MASK | scMask),
             e -> openExistingWorkspace()));
 
     recentMenu = new JMenu(_I("menuRecent"));

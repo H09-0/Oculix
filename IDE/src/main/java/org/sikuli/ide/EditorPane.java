@@ -27,6 +27,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.MouseInputAdapter;
 import javax.swing.text.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.datatransfer.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -81,6 +82,17 @@ public class EditorPane extends JTextPane implements ThemeAware {
     setTransferHandler(new MyTransferHandler());
     lineHighlighter = new EditorCurrentLineHighlighter(this);
     addCaretListener(lineHighlighter);
+    addMouseWheelListener(e -> {
+      if (e.isControlDown() || e.isMetaDown()) {
+        int notches = e.getWheelRotation();
+        if (notches < 0) {
+          zoomIn();
+        } else if (notches > 0) {
+          zoomOut();
+        }
+        e.consume();
+      }
+    });
     initKeyMap();
     log("created %d", editorPaneID);
   }
@@ -303,12 +315,59 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   private ICodeGenerator codeGenerator = null;
 
+  public void zoomIn() {
+    int current = PreferencesUser.get().getFontSize();
+    if (current < 48) {
+      changeFontSize(current + 1);
+    }
+  }
+
+  public void zoomOut() {
+    int current = PreferencesUser.get().getFontSize();
+    if (current > 8) {
+      changeFontSize(current - 1);
+    }
+  }
+
+  public void resetZoom() {
+    changeFontSize(14);
+  }
+
+  public void changeFontSize(int newSize) {
+    PreferencesUser.get().setFontSize(newSize);
+    SikulixIDE ide = SikulixIDE.get();
+    if (ide != null) {
+      ide.updateEditorFonts();
+    } else {
+      setFont(new Font(PreferencesUser.get().getFontName(), Font.PLAIN, newSize));
+      revalidate();
+      repaint();
+    }
+  }
+
   private void initKeyMap() {
     InputMap map = this.getInputMap();
+    ActionMap am = this.getActionMap();
     int shift = InputEvent.SHIFT_DOWN_MASK;
     int ctrl = InputEvent.CTRL_DOWN_MASK;
     map.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, shift), SikuliEditorKit.deIndentAction);
     map.put(KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, ctrl), SikuliEditorKit.completionAction);
+
+    map.put(KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, ctrl), "zoomIn");
+    map.put(KeyStroke.getKeyStroke(KeyEvent.VK_ADD, ctrl), "zoomIn");
+    map.put(KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, ctrl), "zoomOut");
+    map.put(KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, ctrl), "zoomOut");
+    map.put(KeyStroke.getKeyStroke(KeyEvent.VK_0, ctrl), "zoomReset");
+
+    am.put("zoomIn", new AbstractAction() {
+      @Override public void actionPerformed(ActionEvent e) { zoomIn(); }
+    });
+    am.put("zoomOut", new AbstractAction() {
+      @Override public void actionPerformed(ActionEvent e) { zoomOut(); }
+    });
+    am.put("zoomReset", new AbstractAction() {
+      @Override public void actionPerformed(ActionEvent e) { resetZoom(); }
+    });
   }
   //</editor-fold>
 

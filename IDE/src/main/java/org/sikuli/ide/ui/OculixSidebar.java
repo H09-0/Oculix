@@ -327,6 +327,66 @@ public class OculixSidebar extends JPanel {
   // ── Navigation wiring ──
 
   private SidebarSubmenu fileSub, editSub, toolsSub, helpSub;
+  private SidebarSubmenu activeHoverSubmenu = null;
+  private final javax.swing.Timer hoverHideTimer = new javax.swing.Timer(380, e -> hideActiveHoverSubmenu());
+  {
+    hoverHideTimer.setRepeats(false);
+  }
+
+  private void hideActiveHoverSubmenu() {
+    if (activeHoverSubmenu != null) {
+      activeHoverSubmenu.setVisible(false);
+      activeHoverSubmenu = null;
+    }
+  }
+
+  private void wireSubmenuHover(SidebarItem item, SidebarSubmenu submenu) {
+    if (item == null || submenu == null) return;
+
+    item.addActionListener(e -> {
+      if (submenu.isVisible()) {
+        hoverHideTimer.stop();
+        submenu.setVisible(false);
+        activeHoverSubmenu = null;
+      } else {
+        openSubmenu(item, submenu);
+      }
+    });
+
+    item.addMouseListener(new MouseAdapter() {
+      @Override
+      public void mouseEntered(MouseEvent e) {
+        hoverHideTimer.stop();
+        if (activeHoverSubmenu != null && activeHoverSubmenu != submenu) {
+          activeHoverSubmenu.setVisible(false);
+        }
+        openSubmenu(item, submenu);
+      }
+
+      @Override
+      public void mouseExited(MouseEvent e) {
+        hoverHideTimer.restart();
+      }
+    });
+
+    submenu.attachHoverListener(new MouseAdapter() {
+      @Override
+      public void mouseEntered(MouseEvent e) {
+        hoverHideTimer.stop();
+      }
+
+      @Override
+      public void mouseExited(MouseEvent e) {
+        hoverHideTimer.restart();
+      }
+    });
+  }
+
+  private void openSubmenu(SidebarItem item, SidebarSubmenu submenu) {
+    activeHoverSubmenu = submenu;
+    hoverHideTimer.stop();
+    submenu.showBelow(item);
+  }
 
   public void initNavigation(SidebarSubmenu fileSub, SidebarSubmenu editSub,
                               ActionListener runAction, ActionListener runSlowAction,
@@ -335,12 +395,12 @@ public class OculixSidebar extends JPanel {
     this.editSub = editSub;
     this.toolsSub = toolsSub;
     this.helpSub = helpSub;
-    navFile.addActionListener(e -> fileSub.showBelow(navFile));
-    navEdit.addActionListener(e -> editSub.showBelow(navEdit));
+    wireSubmenuHover(navFile, fileSub);
+    wireSubmenuHover(navEdit, editSub);
     if (runAction != null) navRun.addActionListener(runAction);
     if (runSlowAction != null) navRunSlow.addActionListener(runSlowAction);
-    navTools.addActionListener(e -> toolsSub.showBelow(navTools));
-    navHelp.addActionListener(e -> helpSub.showBelow(navHelp));
+    wireSubmenuHover(navTools, toolsSub);
+    wireSubmenuHover(navHelp, helpSub);
   }
 
   // Popup submenus live outside the visible window tree until clicked, so

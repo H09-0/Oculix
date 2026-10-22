@@ -223,8 +223,6 @@ public class PreferencesWin extends JFrame {
                             .add(21, 21, 21)))
                     .add(80, 80, 80)));
       }
-      _tabPane.addTab(SikuliIDEI18N._I("prefTabScreenCapturing"), paneCapture);
-
       //======== _paneTextEditing ========
       {
 
@@ -308,50 +306,8 @@ public class PreferencesWin extends JFrame {
         _paneTextEditingLayout.linkSize(new Component[]{_cmbFontName, _lblFont}, GroupLayout.VERTICAL);
       }
       _tabPane.addTab(SikuliIDEI18N._I("PreferencesWin.paneTextEditing.tab.title"), _paneTextEditing);
-
-      //======== paneGeneral ========
-      {
-
-        //---- _lblUpdates ----
-        _lblUpdates.setFont(_lblUpdates.getFont().deriveFont(_lblUpdates.getFont().getStyle() | Font.BOLD));
-
-        //---- _lblLanguage ----
-        _lblLanguage.setFont(_lblLanguage.getFont().deriveFont(_lblLanguage.getFont().getStyle() | Font.BOLD));
-
-        GroupLayout paneGeneralLayout = new GroupLayout(paneGeneral);
-        paneGeneral.setLayout(paneGeneralLayout);
-        paneGeneralLayout.setHorizontalGroup(
-            paneGeneralLayout.createParallelGroup()
-                .add(paneGeneralLayout.createSequentialGroup()
-                    .add(137, 137, 137)
-                    .add(paneGeneralLayout.createParallelGroup()
-                        .add(paneGeneralLayout.createSequentialGroup()
-                            .add(_lblLanguage)
-                            .add(185, 185, 185))
-                        .add(paneGeneralLayout.createSequentialGroup()
-                            .add(38, 38, 38)
-                            .add(_cmbLang, GroupLayout.PREFERRED_SIZE, 215, GroupLayout.PREFERRED_SIZE))
-                        .add(paneGeneralLayout.createSequentialGroup()
-                            .add(_lblUpdates)
-                            .add(318, 318, 318))
-                        .add(GroupLayout.TRAILING, paneGeneralLayout.createSequentialGroup()
-                            .add(38, 38, 38)
-                            .add(chkAutoUpdate, GroupLayout.DEFAULT_SIZE, 376, Short.MAX_VALUE)))
-                    .addContainerGap()));
-        paneGeneralLayout.setVerticalGroup(
-            paneGeneralLayout.createParallelGroup()
-                .add(paneGeneralLayout.createSequentialGroup()
-                    .add(26, 26, 26)
-                    .add(_lblUpdates)
-                    .addPreferredGap(LayoutStyle.RELATED)
-                    .add(chkAutoUpdate)
-                    .add(40, 40, 40)
-                    .add(_lblLanguage)
-                    .addPreferredGap(LayoutStyle.RELATED)
-                    .add(_cmbLang, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                    .addContainerGap(196, Short.MAX_VALUE)));
-      }
       _tabPane.addTab(SikuliIDEI18N._I("prefTabGeneralSettings"), paneGeneral);
+      _tabPane.addTab(SikuliIDEI18N._I("prefTabScreenCapturing"), paneCapture);
 
     }
     contentPane.add(_tabPane, BorderLayout.CENTER);
@@ -503,6 +459,9 @@ public class PreferencesWin extends JFrame {
 
     pref.setFontName((String) _cmbFontName.getSelectedItem());
     pref.setFontSize((Integer) _spnFontSize.getValue());
+    if (ide != null) {
+      ide.updateEditorFonts();
+    }
 
     Locale locale = (Locale) _cmbLang.getSelectedItem();
     boolean localeChanged = (locale != null && !locale.equals(_locale));
@@ -653,18 +612,25 @@ public class PreferencesWin extends JFrame {
   }
 
   private void updateFontPreview() {
-    if (!isInitialized || codePane == null) {
+    if (!isInitialized) {
       return;
     }
     SikulixIDE ide = SikulixIDE.get();
     Font font = new Font((String) _cmbFontName.getSelectedItem(), Font.PLAIN,
         (Integer) _spnFontSize.getValue());
-    try {
-      Element root = codePane.getDocument().getDefaultRootElement();
-      codePane.jumpTo(root.getElementIndex(codePane.getCaretPosition()));
-    } catch (Exception ex) {
+    if (codePane != null) {
+      try {
+        Element root = codePane.getDocument().getDefaultRootElement();
+        codePane.jumpTo(root.getElementIndex(codePane.getCaretPosition()));
+      } catch (Exception ex) {
+      }
+      codePane.setFont(font);
     }
-    codePane.setFont(font);
+    if (ide != null) {
+      pref.setFontName((String) _cmbFontName.getSelectedItem());
+      pref.setFontSize((Integer) _spnFontSize.getValue());
+      ide.updateEditorFonts();
+    }
     isDirty = true;
   }
 
