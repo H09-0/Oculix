@@ -505,8 +505,15 @@ public class PreferencesWin extends JFrame {
     pref.setFontSize((Integer) _spnFontSize.getValue());
 
     Locale locale = (Locale) _cmbLang.getSelectedItem();
+    boolean localeChanged = (locale != null && !locale.equals(_locale));
     pref.setLocale(locale);
     SikuliIDEI18N.setLocale(locale);
+    if (localeChanged) {
+      _locale = locale;
+      if (ide != null) {
+        ide.refreshAfterLocaleChange();
+      }
+    }
     isDirty = true;
   }
 
@@ -611,14 +618,6 @@ public class PreferencesWin extends JFrame {
 
   private void btnOkActionPerformed(ActionEvent e) {
     savePrefs();
-    String warn = "Until some bugs have been fixed,\n" +
-        "you should restart the IDE now!\n" +
-        "(except for most options in [more options ...])\n" +
-        "Otherwise you might notice strange behavior ;-)\n" +
-        "--- but only if you have made any changes!\n\n" +
-        "Use CANCEL next time, if nothing was changed!";
-    JOptionPane.showMessageDialog(this, warn,
-        "--- Preferences have been saved ---", JOptionPane.WARNING_MESSAGE);
     if (winPrefMore != null) winPrefMore.dispose();
     this.dispose();
   }

@@ -3,7 +3,9 @@
  */
 package org.sikuli.ide;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import net.miginfocom.swing.MigLayout;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -64,6 +66,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   private volatile String filterTerm = "";
   private volatile boolean autoScroll = true;
   private JTextField filterField;
+  private JPanel toolbar;
   Thread errorThrower; // just for testing (Throws an Exception at this Console)
 
   class PopupListener extends MouseAdapter {
@@ -106,23 +109,31 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
     setLayout(new BorderLayout());
 
-    // ── Console toolbar : filter, autoscroll, save, copy, clear ──
-    // West side  : live filter + autoscroll toggle (read-affecting actions).
-    // East side  : Save / Copy / Clear (one-shot actions).
-    // The filter is live and case-insensitive : every keystroke rebuilds the
-    // view from rawLines keeping only lines that contain the term. Emptying
-    // the filter restores the full scrollback. New log lines arriving while a
-    // filter is active are also filtered before being appended.
+    // ── Console toolbar : filter, autoscroll, save, copy, clear, report ──
+    buildToolbar();
+    add(toolbar, BorderLayout.NORTH);
 
-    JPanel leftToolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
-    leftToolbar.setOpaque(false);
+    scrollPane = new JScrollPane(textArea);
+    scrollPane.setBorder(BorderFactory.createEmptyBorder());
+    add(scrollPane, BorderLayout.CENTER);
+    applyThemeColors();
 
-    JLabel filterLabel = new JLabel(new FlatSVGIcon("icons/menu/magnifier.svg", 16, 16));
-    filterLabel.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
-    leftToolbar.add(filterLabel);
+    // Create the popup menu.
+    buildPopup();
+  }
 
-    filterField = new JTextField(20);
-    filterField.setToolTipText("Live filter — show only lines containing this text (case-insensitive)");
+  private void buildToolbar() {
+    toolbar = new JPanel(new MigLayout("insets 3 8 3 8, fillx, aligny center", "[]4[grow, 70:130:220]8[]push[]2[]2[]2[]", "[]"));
+    toolbar.setOpaque(true);
+
+    JLabel filterLabel = new JLabel(new FlatSVGIcon("icons/menu/magnifier.svg", 14, 14));
+    filterLabel.setToolTipText(_I("consoleFilterTooltip"));
+    toolbar.add(filterLabel);
+
+    filterField = new JTextField(filterTerm);
+    filterField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, _I("consoleFilterPlaceholder"));
+    filterField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+    filterField.setToolTipText(_I("consoleFilterTooltip"));
     filterField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
       @Override public void insertUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
       @Override public void removeUpdate(javax.swing.event.DocumentEvent e)  { onChange(); }
@@ -132,21 +143,17 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         rebuildView();
       }
     });
-    leftToolbar.add(filterField);
+    toolbar.add(filterField, "growx");
 
-    JCheckBox autoScrollCb = new JCheckBox("Auto-scroll", true);
+    JCheckBox autoScrollCb = new JCheckBox(_I("consoleAutoScroll"), autoScroll);
     autoScrollCb.setFocusable(false);
     autoScrollCb.setOpaque(false);
-    autoScrollCb.setToolTipText("Auto-scroll to the latest line as new logs arrive");
+    autoScrollCb.setFont(org.sikuli.ide.theme.OculixFonts.ui(11));
+    autoScrollCb.setToolTipText(_I("consoleAutoScrollTooltip"));
     autoScrollCb.addActionListener(e -> autoScroll = autoScrollCb.isSelected());
-    leftToolbar.add(autoScrollCb);
+    toolbar.add(autoScrollCb);
 
-    JPanel rightToolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 4));
-    rightToolbar.setOpaque(false);
-
-    JButton saveBtn = new JButton("Save…", new FlatSVGIcon("icons/menu/floppy.svg", 16, 16));
-    saveBtn.setFocusable(false);
-    saveBtn.setToolTipText("Save the entire log to a .txt file (UTF-8)");
+    JButton saveBtn = createToolbarButton(_I("consoleSave"), "icons/menu/floppy.svg", _I("consoleSaveTooltip"));
     saveBtn.addActionListener(e -> {
       JFileChooser fc = new JFileChooser();
       fc.setSelectedFile(new java.io.File("oculix-log-" + System.currentTimeMillis() + ".txt"));
@@ -157,15 +164,13 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
           }
         } catch (Exception ex) {
           JOptionPane.showMessageDialog(EditorConsolePane.this,
-              "Save failed: " + ex.getMessage(), "OculiX log", JOptionPane.WARNING_MESSAGE);
+              _I("consoleSaveErrorMsg", ex.getMessage()), _I("consoleSaveErrorTitle"), JOptionPane.WARNING_MESSAGE);
         }
       }
     });
-    rightToolbar.add(saveBtn);
+    toolbar.add(saveBtn);
 
-    JButton copyBtn = new JButton("Copy all", new FlatSVGIcon("icons/menu/copy.svg", 16, 16));
-    copyBtn.setFocusable(false);
-    copyBtn.setToolTipText("Copy entire log to clipboard (plain text)");
+    JButton copyBtn = createToolbarButton(_I("consoleCopy"), "icons/menu/copy.svg", _I("consoleCopyTooltip"));
     copyBtn.addActionListener(e -> {
       try {
         String plain = textArea.getDocument().getText(0, textArea.getDocument().getLength());
@@ -176,20 +181,16 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
       }
     });
-    rightToolbar.add(copyBtn);
+    toolbar.add(copyBtn);
 
-    JButton clearBtn = new JButton("Clear", new FlatSVGIcon("icons/menu/clear.svg", 16, 16));
-    clearBtn.setFocusable(false);
-    clearBtn.setToolTipText("Clear log buffer and view");
+    JButton clearBtn = createToolbarButton(_I("consoleClear"), "icons/menu/clear.svg", _I("consoleClearTooltip"));
     clearBtn.addActionListener(e -> {
       textArea.setText("");
       rawLines.clear();
     });
-    rightToolbar.add(clearBtn);
+    toolbar.add(clearBtn);
 
-    JButton reportBtn = new JButton("Report bug…", new FlatSVGIcon("icons/menu/ladybug.svg", 16, 16));
-    reportBtn.setFocusable(false);
-    reportBtn.setToolTipText("Copy log to clipboard and open the OculiX bug report form on GitHub");
+    JButton reportBtn = createToolbarButton(_I("consoleReportBug"), "icons/menu/ladybug.svg", _I("consoleReportBugTooltip"));
     reportBtn.addActionListener(e -> {
       // 1) Copy plain-text log to clipboard so the user can paste it directly.
       try {
@@ -200,60 +201,72 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         StringSelection sel = new StringSelection(textArea.getText());
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
       }
-      // 2) Inform the user — what was done, what to paste, where to paste it.
+      // 2) Inform the user
       java.awt.Image geckoRaw = new ImageIcon(getClass().getResource("/icons/gecko_cyclope.png")).getImage();
       ImageIcon gecko = new ImageIcon(geckoRaw.getScaledInstance(48, 48, java.awt.Image.SCALE_SMOOTH));
       JOptionPane.showMessageDialog(
           EditorConsolePane.this,
-          "Your log has been copied to the clipboard.\n\n"
-              + "The OculiX bug report form will open in your browser.\n"
-              + "Please paste the log into the \"Logs / console output\" field,\n"
-              + "fill in the other sections, then submit.\n\n"
-              + "Thanks for helping us improve OculiX.",
-          "Report a bug",
+          _I("consoleReportBugDialogMsg"),
+          _I("consoleReportBugDialogTitle"),
           JOptionPane.INFORMATION_MESSAGE,
           gecko);
-      // 3) Open the bug_report.yml template — no API call, no auto-creation,
-      // the user stays in full control of what gets submitted.
+      // 3) Open the bug_report.yml template
       try {
         Desktop.getDesktop().browse(java.net.URI.create(
             "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml"));
       } catch (Exception ex) {
         JOptionPane.showMessageDialog(
             EditorConsolePane.this,
-            "Could not open the browser. Please go to:\n"
-                + "https://github.com/oculix-org/Oculix/issues/new?template=bug_report.yml",
-            "Report a bug",
+            _I("consoleReportBugErrorMsg"),
+            _I("consoleReportBugDialogTitle"),
             JOptionPane.WARNING_MESSAGE);
       }
     });
-    rightToolbar.add(reportBtn);
+    toolbar.add(reportBtn);
 
-    JPanel toolbar = new JPanel(new BorderLayout());
-    toolbar.setOpaque(false);
-    toolbar.add(leftToolbar, BorderLayout.WEST);
-    toolbar.add(rightToolbar, BorderLayout.EAST);
-    add(toolbar, BorderLayout.NORTH);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(toolbar);
+  }
 
-    scrollPane = new JScrollPane(textArea);
-    scrollPane.setBorder(BorderFactory.createEmptyBorder());
-    add(scrollPane, BorderLayout.CENTER);
-    applyThemeColors();
-
-    //Create the popup menu.
-    popup = new JPopupMenu();
+  private void buildPopup() {
+    if (popup == null) {
+      popup = new JPopupMenu();
+      MouseListener popupListener = new PopupListener(popup);
+      textArea.addMouseListener(popupListener);
+    } else {
+      popup.removeAll();
+    }
     JMenuItem menuItem = new JMenuItem(_I("editorConsoleCtxClear"));
-    // Add ActionListener that clears the textArea
-    menuItem.addActionListener(new ActionListener() {
-      public void actionPerformed(ActionEvent e) {
-        textArea.setText("");
-      }
+    menuItem.addActionListener(e -> {
+      textArea.setText("");
+      rawLines.clear();
     });
     popup.add(menuItem);
+  }
 
-    //Add listener to components that can bring up popup menus.
-    MouseListener popupListener = new PopupListener(popup);
-    textArea.addMouseListener(popupListener);
+  /**
+   * Refreshes toolbar labels, tooltips, placeholders, and layout orientation
+   * dynamically when the user changes IDE locale, without requiring a restart.
+   */
+  public void refreshI18n() {
+    if (toolbar != null) {
+      remove(toolbar);
+    }
+    buildToolbar();
+    add(toolbar, BorderLayout.NORTH);
+    applyThemeColors();
+    buildPopup();
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
+    revalidate();
+    repaint();
+  }
+
+  private JButton createToolbarButton(String text, String iconPath, String tooltip) {
+    JButton btn = new JButton(text, new FlatSVGIcon(iconPath, 14, 14));
+    btn.setFocusable(false);
+    btn.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+    btn.setFont(org.sikuli.ide.theme.OculixFonts.ui(11));
+    btn.setToolTipText(tooltip);
+    return btn;
   }
 
   /**
@@ -297,6 +310,12 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     setBackground(bg);
     if (scrollPane != null) {
       scrollPane.getViewport().setBackground(bg);
+    }
+    if (toolbar != null) {
+      Color toolbarBg = dark ? new Color(0x0C, 0x11, 0x2A) : new Color(0xEE, 0xF2, 0xFA);
+      Color borderCol = dark ? new Color(0x1E, 0x27, 0x4E) : new Color(0xD0, 0xD8, 0xE8);
+      toolbar.setBackground(toolbarBg);
+      toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, borderCol));
     }
   }
 

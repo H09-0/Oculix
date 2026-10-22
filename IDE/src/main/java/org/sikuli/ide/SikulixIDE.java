@@ -323,6 +323,8 @@ public class SikulixIDE extends JFrame {
     editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, explorer, codePane);
     editorSplit.setDividerLocation(0);
     editorSplit.setResizeWeight(0.0); // editor gets all extra space
+    editorSplit.setContinuousLayout(true);
+    editorSplit.setMinimumSize(new Dimension(200, 150));
     editorSplit.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, UIManager.getColor("Separator.foreground")));
     editorSplit.setOneTouchExpandable(true);
 
@@ -334,8 +336,10 @@ public class SikulixIDE extends JFrame {
       // a visible 1px ink-500 line so the editor / log boundary reads clearly
       // in both themes — without that border, the surfaces blur into each
       // other (sidebar paper-100 ≈ workspace paper-100 ≈ editor white in light).
+      messageArea.setMinimumSize(new Dimension(0, 110));
       mainPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorSplit, messageArea);
       mainPane.setResizeWeight(0.75);
+      mainPane.setContinuousLayout(true);
       mainPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
       mainPane.setOneTouchExpandable(true);
       mainPane.setDividerSize(4);
@@ -371,7 +375,7 @@ public class SikulixIDE extends JFrame {
     initSidebarActions();
     initSidebarNavigation();
     sidebar.initFooter(Commons.getSXVersionShort(), e -> refreshAfterThemeChange());
-    ideContainer.add(sidebar, BorderLayout.WEST);
+    ideContainer.add(sidebar, BorderLayout.LINE_START);
     updateScriptDependentItems(); // grey out Run/Capture/Record until a script is open
     Debug.log("IDE: Putting all together - after sidebar");
 
@@ -385,6 +389,8 @@ public class SikulixIDE extends JFrame {
     ideContainer.add(_status, BorderLayout.SOUTH);
 
     Debug.log("IDE: Putting all together - before layout");
+    ideWindow.setMinimumSize(new Dimension(860, 520));
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(ideWindow);
     ideContainer.doLayout();
 
     Debug.log("IDE: Putting all together - after layout");
@@ -785,6 +791,69 @@ public class SikulixIDE extends JFrame {
     }
   }
 
+  /**
+   * Dynamically hot-reloads fonts, layout orientation (LTR/RTL), menus,
+   * sidebar submenus, welcome screen, console toolbar, and status bar
+   * when the user switches language, without requiring an IDE restart.
+   */
+  public void refreshAfterLocaleChange() {
+    // 1. Re-evaluate preferred UI fonts (e.g. Arabic vs Inter)
+    org.sikuli.ide.theme.OculixFonts.updatePreferredFonts();
+
+    // 2. Refresh FlatLaf UI tree
+    com.formdev.flatlaf.FlatLaf.updateUI();
+
+    // 3. Rebuild menu bar
+    if (_menuBar != null && ideWindow != null) {
+      _menuBar.removeAll();
+      initMenuBars(ideWindow);
+      _menuBar.setVisible(false);
+    }
+
+    // 4. Rebuild sidebar actions and navigation
+    if (sidebar != null) {
+      initSidebarActions();
+      initSidebarNavigation();
+      updateScriptDependentItems();
+      sidebar.refreshI18n();
+    }
+
+    // 5. Rebuild Welcome tab if currently visible
+    if (welcomeShowing) {
+      hideWelcomeTab();
+      welcomeTab = null;
+      welcomeScroll = null;
+      showWelcomeTab();
+    }
+
+    // 6. Refresh console toolbar localization and orientation
+    if (messages != null) {
+      messages.refreshI18n();
+    }
+
+    // 7. Refresh Script Explorer if present
+    if (explorer != null) {
+      explorer.refreshI18n();
+    }
+
+    // 8. Update status bar orientation
+    if (_status != null) {
+      org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(_status);
+      _status.revalidate();
+      _status.repaint();
+    }
+
+    // 9. Re-apply component orientation and revalidate all top-level windows
+    for (java.awt.Window w : java.awt.Window.getWindows()) {
+      if (w.isDisplayable()) {
+        org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(w);
+        SwingUtilities.updateComponentTreeUI(w);
+        w.revalidate();
+        w.repaint();
+      }
+    }
+  }
+
   private java.util.List<ThemeAware> collectThemeAware() {
     java.util.List<ThemeAware> list = new java.util.ArrayList<>();
     if (contexts != null) {
@@ -929,6 +998,7 @@ public class SikulixIDE extends JFrame {
 
   private CloseableTabbedPane tabs;
   private WelcomeTab welcomeTab;
+  private JScrollPane welcomeScroll;
   private boolean welcomeShowing = false;
 
   void showWelcomeTab() {
@@ -940,9 +1010,15 @@ public class SikulixIDE extends JFrame {
             e -> openNewWorkspaceDialog(),
             e -> openExistingWorkspace()
         );
-        welcomeTab.putClientProperty("isClosable", false);
+        welcomeScroll = new JScrollPane(welcomeTab);
+        welcomeScroll.setBorder(BorderFactory.createEmptyBorder());
+        welcomeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        welcomeScroll.getVerticalScrollBar().setUnitIncrement(16);
+        welcomeScroll.setOpaque(false);
+        welcomeScroll.getViewport().setOpaque(false);
+        welcomeScroll.putClientProperty("isClosable", false);
       }
-      tabs.addTab("Welcome", welcomeTab);
+      tabs.addTab("Welcome", welcomeScroll);
       welcomeShowing = true;
       updateScriptDependentItems();
       if (sidebar != null) {
@@ -953,10 +1029,18 @@ public class SikulixIDE extends JFrame {
   }
 
   void hideWelcomeTab() {
-    if (welcomeShowing && welcomeTab != null) {
-      int idx = tabs.indexOfComponent(welcomeTab);
-      if (idx >= 0) {
-        tabs.removeTabAt(idx);
+    if (welcomeShowing) {
+      if (welcomeScroll != null) {
+        int idx = tabs.indexOfComponent(welcomeScroll);
+        if (idx >= 0) {
+          tabs.removeTabAt(idx);
+        }
+      }
+      if (welcomeTab != null) {
+        int idx = tabs.indexOfComponent(welcomeTab);
+        if (idx >= 0) {
+          tabs.removeTabAt(idx);
+        }
       }
       welcomeShowing = false;
       updateScriptDependentItems();
@@ -4258,7 +4342,7 @@ public class SikulixIDE extends JFrame {
   private JTabbedPane messageArea = null;
   private EditorConsolePane messages = null;
 
-  private boolean SHOULD_WRAP_LINE = false;
+  private boolean SHOULD_WRAP_LINE = true;
 
   private void initMessageArea() {
     messages.init(SHOULD_WRAP_LINE);

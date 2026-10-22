@@ -88,9 +88,14 @@ public class OculixSidebar extends JPanel {
     JScrollPane scroll = new JScrollPane(mainPanel);
     scroll.setBorder(null);
     scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    scroll.getVerticalScrollBar().setUnitIncrement(12);
+    scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+    scroll.getVerticalScrollBar().setUnitIncrement(16);
     scroll.setOpaque(false);
     scroll.getViewport().setOpaque(false);
+
+    // Forward wheel scrolling from container and panel to scroll pane
+    addMouseWheelListener(e -> scroll.dispatchEvent(SwingUtilities.convertMouseEvent(this, e, scroll)));
+    mainPanel.addMouseWheelListener(e -> scroll.dispatchEvent(SwingUtilities.convertMouseEvent(mainPanel, e, scroll)));
 
     add(scroll, BorderLayout.CENTER);
     add(footerPanel, BorderLayout.SOUTH);
@@ -370,12 +375,8 @@ public class OculixSidebar extends JPanel {
   }
 
   /**
-   * Persists the new locale + reloads the SikuliIDEI18N bundle, then
-   * surfaces a "restart for full effect" toast on the IDE message panel.
-   * The Welcome tab + Sidebar section headers will pick up the new
-   * locale on the next IDE launch (Java Swing components cache strings
-   * at construction time, so a partial live-refresh is unreliable
-   * across the whole IDE).
+   * Persists the new locale, updates the SikuliIDEI18N bundle, and triggers
+   * a live hot-reload across the entire IDE without requiring a restart.
    */
   private void changeLocale(java.util.Locale newLocale) {
     try {
@@ -383,32 +384,40 @@ public class OculixSidebar extends JPanel {
       prefs.setLocale(newLocale);
       prefs.store();
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(newLocale);
-      // Update the picker label to the freshly-selected locale so the
-      // user sees feedback even before restart. setSelectedLocale (not
-      // setLocale) — the latter is inherited from java.awt.Component
-      // and renaming avoids a weak-access override compile error.
       if (languagePicker != null) languagePicker.setSelectedLocale(newLocale);
 
-      // User-facing notice that a restart is required for the full UI
-      // to switch (Welcome tab + Sidebar labels are constructed once,
-      // can't refresh in-place without rebuilding the whole tree).
-      // The popup itself uses _I() with the freshly-set locale, so the
-      // user sees the new translation as proof the change took effect.
-      String displayName = newLocale.getDisplayName(newLocale);
-      if (displayName == null || displayName.isEmpty()) {
-        displayName = newLocale.toLanguageTag();
+      org.sikuli.ide.SikulixIDE ide = org.sikuli.ide.SikulixIDE.get();
+      if (ide != null) {
+        ide.refreshAfterLocaleChange();
       }
-      // Capitalize first letter so 'français' / 'deutsch' look right.
-      displayName = Character.toUpperCase(displayName.charAt(0)) + displayName.substring(1);
-
-      JOptionPane.showMessageDialog(
-          SwingUtilities.getWindowAncestor(this),
-          _I("i18nLanguageChangedBody", displayName),
-          _I("i18nLanguageChangedTitle"),
-          JOptionPane.INFORMATION_MESSAGE);
     } catch (Exception ex) {
       System.err.println("[i18n] failed to change locale: " + ex);
     }
+  }
+
+  /**
+   * Refreshes sidebar section headers, items, status labels, and layout orientation
+   * dynamically when the user changes IDE locale.
+   */
+  public void refreshI18n() {
+    mainPanel.removeAll();
+    initNavItems();
+    int w = collapsed ? 64 : (org.sikuli.support.ide.SikuliIDEI18N.isRTL() ? 250 : 240);
+    setPreferredSize(new Dimension(w, 0));
+    setMinimumSize(new Dimension(w, 0));
+    if (collapsed) {
+      for (Component c : mainPanel.getComponents()) {
+        if (c instanceof SidebarItem) ((SidebarItem) c).setCollapsed(true);
+        if (c instanceof JLabel && !(c instanceof SidebarItem)) c.setVisible(false);
+        if (c instanceof JPanel && c != mainPanel) c.setVisible(false);
+      }
+    }
+    if (languagePicker != null) {
+      languagePicker.setSelectedLocale(PreferencesUser.get().getLocale());
+    }
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
+    revalidate();
+    repaint();
   }
 
   private void toggleTheme() {
@@ -438,6 +447,9 @@ public class OculixSidebar extends JPanel {
 
   public void toggleCollapsed() {
     collapsed = !collapsed;
+    int w = collapsed ? 64 : (org.sikuli.support.ide.SikuliIDEI18N.isRTL() ? 250 : 240);
+    setPreferredSize(new Dimension(w, 0));
+    setMinimumSize(new Dimension(w, 0));
     for (Component c : mainPanel.getComponents()) {
       if (c instanceof SidebarItem) ((SidebarItem) c).setCollapsed(collapsed);
       if (c instanceof JLabel && !(c instanceof SidebarItem)) c.setVisible(!collapsed);

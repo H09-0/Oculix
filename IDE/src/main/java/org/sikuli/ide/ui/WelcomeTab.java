@@ -84,10 +84,12 @@ public class WelcomeTab extends JPanel {
   }
 
   private void buildUI() {
-    // Centered column of content with a max width for readability
+    // Centered column of content with responsive fluid width
     JPanel column = new JPanel(new MigLayout(
-        "wrap 1, insets 28 36 20 36, gap 0", "[grow, fill, 580!]", ""));
+        "wrap 1, insets 20 24 16 24, gap 0", "[grow, fill, 300:560:680]", ""));
     column.setOpaque(false);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(column);
 
     // ── Eyebrow ──
     // Source key has the brand prefix in CAPS already; .toUpperCase() is a
@@ -111,8 +113,10 @@ public class WelcomeTab extends JPanel {
     heroArea.setFocusable(false);
     heroArea.setOpaque(false);
     heroArea.setBorder(null);
-    heroArea.setFont(OculixFonts.uiBold(36));
+    int heroSize = org.sikuli.ide.theme.OculixFonts.isArabicLocale() ? 26 : 36;
+    heroArea.setFont(OculixFonts.uiBold(heroSize));
     heroArea.setForeground(OculixColors.OX_INK_100);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(heroArea);
     column.add(heroArea, "growx, gapbottom 10");
 
     // Same pattern as Hero : JTextArea wraps to the width MigLayout grants.
@@ -130,6 +134,7 @@ public class WelcomeTab extends JPanel {
     bodyArea.setBorder(null);
     bodyArea.setFont(OculixFonts.ui(13));
     bodyArea.setForeground(OculixColors.OX_INK_200);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(bodyArea);
     column.add(bodyArea, "growx, gapbottom 4");
 
     JLabel attribution = new JLabel(_I("welcomeAttribution"));
@@ -180,6 +185,7 @@ public class WelcomeTab extends JPanel {
     // overrides with growx so it takes the full WelcomeTab width.
     add(column);
     add(footer, "growx, gap 36 36 0 20");
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
   }
 
   // ── Footer helpers ──────────────────────────────────────────────
@@ -280,6 +286,7 @@ public class WelcomeTab extends JPanel {
    * with the hero text. Cached at panel size, regenerated only on resize.
    */
   private java.awt.image.BufferedImage renderGecko(int w, int h) {
+    if (w < 920) return null;
     if (geckoSource == null) {
       try {
         java.net.URL url = WelcomeTab.class.getResource("/icons/gecko_cyclope_hero.png");
@@ -299,18 +306,12 @@ public class WelcomeTab extends JPanel {
     // Target ~58% of panel height, capped at 520px so it doesn't scream on
     // big screens. Positioned slightly past the centered text column so it
     // reads as part of the same composition rather than glued to the edge.
-    // Gecko fixed at 360 px — independent of WelcomeTab height. The previous
-    // `h * 0.58` made the gecko grow when the SplitPane gave the WelcomeTab
-    // more vertical room (e.g. footer-friendly 70/30 ratios), which then
-    // overlapped the text column. Fixed size keeps the mascot stable
-    // regardless of the IDE's vertical split, matching the visual baseline
-    // at the previous 60/40 split.
     int targetH = 360;
     double scale = (double) targetH / geckoSource.getHeight();
     int targetW = (int) (geckoSource.getWidth() * scale);
-    // Centered column is 580px wide; place the gecko's center near 78% of
-    // panel width so its left edge sits right after the text block.
-    int x = (int) (w * 0.78) - targetW / 2;
+    // Respect RTL text direction: in RTL mascot is on the left; in LTR on the right.
+    boolean rtl = org.sikuli.support.ide.SikuliIDEI18N.isRTL();
+    int x = rtl ? (int) (w * 0.20) - targetW / 2 : (int) (w * 0.80) - targetW / 2;
     int y = (h - targetH) / 2;
 
     g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.28f));
@@ -369,15 +370,27 @@ public class WelcomeTab extends JPanel {
     }
 
     private static JComponent bullet(String title, String desc) {
+      boolean rtl = org.sikuli.support.ide.SikuliIDEI18N.isRTL();
       JPanel row = new JPanel(new MigLayout("insets 0, gap 8", "[12!][grow, fill]", ""));
       row.setOpaque(false);
+      org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(row);
+
       JLabel dot = new JLabel("•");
       dot.setFont(OculixFonts.uiBold(13));
       dot.setForeground(OculixColors.OX_CYAN_500);
       row.add(dot, "aligny top");
-      JLabel text = new JLabel("<html><b style='color:#E6EAFB'>" + title + "</b>"
-          + " <span style='color:#B9C2E8'>— " + desc + "</span></html>");
+
+      String html;
+      if (rtl) {
+        html = "<html dir='rtl'><body dir='rtl' style='text-align:right;'><b style='color:#E6EAFB'>"
+            + title + "</b>&rlm; <span style='color:#B9C2E8'>— " + desc + "</span></body></html>";
+      } else {
+        html = "<html><b style='color:#E6EAFB'>" + title + "</b>"
+            + " <span style='color:#B9C2E8'>— " + desc + "</span></html>";
+      }
+      JLabel text = new JLabel(html);
       text.setFont(OculixFonts.ui(12));
+      org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(text);
       row.add(text, "growx");
       return row;
     }

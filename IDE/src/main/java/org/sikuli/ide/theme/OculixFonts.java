@@ -136,6 +136,61 @@ public final class OculixFonts {
       "ru", "uk", "bg", "sr"            // Cyrillic
   );
 
+  private static String arabicFontFamily = null;
+
+  /**
+   * True when the active user locale is Arabic.
+   */
+  public static boolean isArabicLocale() {
+    try {
+      java.util.Locale loc = org.sikuli.basics.PreferencesUser.get().getLocale();
+      return loc != null && "ar".equalsIgnoreCase(loc.getLanguage());
+    } catch (Throwable t) {
+      return false;
+    }
+  }
+
+  /**
+   * Resolves the best available native Arabic font family on this system.
+   * Prefers clean modern UI fonts with full dual-script coverage (both Latin and Arabic)
+   * like Segoe UI, Tahoma, Cairo, DejaVu Sans, or Java composite Dialog.
+   */
+  public static synchronized String resolveArabicFontFamily() {
+    if (arabicFontFamily != null) {
+      return arabicFontFamily;
+    }
+    String[] candidates = {
+        "Segoe UI",       // Windows modern default (full Latin + Arabic)
+        "Tahoma",         // Windows/Wine classic clean dual-script
+        "Cairo",          // Modern Arabic UI font
+        "DejaVu Sans",    // Linux default full-coverage dual-script
+        "Arial",          // Cross-platform standard dual-script
+        Font.SANS_SERIF,  // Java logical composite
+        Font.DIALOG       // Java logical composite
+    };
+    try {
+      GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+      java.util.Set<String> available = new java.util.HashSet<>(java.util.Arrays.asList(ge.getAvailableFontFamilyNames()));
+      for (String c : candidates) {
+        if (available.contains(c) || Font.DIALOG.equals(c) || Font.SANS_SERIF.equals(c)) {
+          Font testFont = new Font(c, Font.PLAIN, 12);
+          // Crucial: Must support BOTH Latin (A-Z, a-z, 0-9) and Arabic glyphs.
+          // Single-script fonts (like standalone Noto Sans Arabic) lack Latin glyphs
+          // and produce tofu boxes for English words like 'OculiX', 'Python', 'Java'.
+          if (testFont.canDisplay('O') && testFont.canDisplay('x') && testFont.canDisplay('4')
+              && testFont.canDisplay('\u0639') && testFont.canDisplay('\u0645')) {
+            arabicFontFamily = c;
+            return c;
+          }
+        }
+      }
+    } catch (Throwable t) {
+      // Fallback below
+    }
+    arabicFontFamily = Font.DIALOG;
+    return arabicFontFamily;
+  }
+
   /**
    * True when the active user locale needs the Unicode fallback chain.
    *
@@ -158,8 +213,30 @@ public final class OculixFonts {
     }
   }
 
+  /**
+   * Configures FlatLaf preferred font families based on the active locale.
+   * Safe to call on startup and dynamically upon live language changes.
+   */
+  public static void updatePreferredFonts() {
+    if (currentLocaleNeedsFallback()) {
+      if (isArabicLocale()) {
+        com.formdev.flatlaf.FlatLaf.setPreferredFontFamily(resolveArabicFontFamily());
+      } else {
+        com.formdev.flatlaf.FlatLaf.setPreferredFontFamily(Font.DIALOG);
+      }
+      com.formdev.flatlaf.FlatLaf.setPreferredMonospacedFontFamily(Font.MONOSPACED);
+    } else {
+      com.formdev.flatlaf.FlatLaf.setPreferredFontFamily(FAMILY_INTER);
+      com.formdev.flatlaf.FlatLaf.setPreferredMonospacedFontFamily(FAMILY_MONO);
+    }
+  }
+
   private static Font brandOrFallback(String brandFamily, int style, int size) {
     if (currentLocaleNeedsFallback()) {
+      if (isArabicLocale()) {
+        // Arabic glyphs benefit from +1 pt scaling for optimal legibility alongside icons
+        return new Font(resolveArabicFontFamily(), style, size + 1);
+      }
       return new Font(Font.DIALOG, style, size);
     }
     return new Font(brandFamily, style, size);

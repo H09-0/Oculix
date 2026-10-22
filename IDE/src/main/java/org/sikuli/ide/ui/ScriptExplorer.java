@@ -66,12 +66,17 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     scrollPane = new JScrollPane(cardContainer);
     scrollPane.setBorder(null);
     scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    scrollPane.getVerticalScrollBar().setUnitIncrement(12);
+    scrollPane.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+    scrollPane.getVerticalScrollBar().setUnitIncrement(16);
     scrollPane.setOpaque(false);
     scrollPane.getViewport().setOpaque(false);
 
+    // Forward wheel scrolling from explorer container to scroll pane
+    addMouseWheelListener(e -> scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(this, e, scrollPane)));
+    cardContainer.addMouseWheelListener(e -> scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(cardContainer, e, scrollPane)));
+
     // Empty state
-    emptyLabel = new JLabel("<html><center>No scripts open<br><br><span style='font-size:9px'>Use File &gt; New<br>to create a script</span></center></html>");
+    emptyLabel = new JLabel(_I("scriptExplorerEmptyState"));
     emptyLabel.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
     emptyLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
     emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -161,6 +166,10 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
       this.index = index;
       setLayout(new MigLayout("insets 8 10 8 10, gap 4", "[grow][]", "[]2[]"));
       setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+      addMouseWheelListener(e -> {
+        scrollPane.dispatchEvent(SwingUtilities.convertMouseEvent(this, e, scrollPane));
+      });
 
       normalBg = UIManager.getColor("Panel.background");
       hoverBg = UIManager.getColor("List.selectionInactiveBackground");
@@ -326,6 +335,14 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     for (ScriptCard card : cards) {
       card.refreshTheme();
     }
+    revalidate();
+    repaint();
+  }
+
+  public void refreshI18n() {
+    titleLabel.setText(_I("workspaceTitle"));
+    emptyLabel.setText(_I("scriptExplorerEmptyState"));
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
     revalidate();
     repaint();
   }

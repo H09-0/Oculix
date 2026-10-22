@@ -63,4 +63,55 @@ class ThemeAwareContractTest {
         Class.forName("org.sikuli.ide.ui.ScriptExplorer")),
         "ScriptExplorer must implement ThemeAware (workspace pane bg follows theme)");
   }
+
+  @Test
+  void editorConsolePane_initializes_without_layout_error() {
+    assertDoesNotThrow(() -> {
+      EditorConsolePane console = new EditorConsolePane();
+      console.init(true);
+      console.init(false);
+    });
+  }
+
+  @Test
+  void welcomeTab_initializes_without_layout_error() {
+    assertDoesNotThrow(() -> {
+      new org.sikuli.ide.ui.WelcomeTab(e -> {}, e -> {}, e -> {}, e -> {});
+    });
+  }
+
+  @Test
+  void live_locale_switching_toggles_orientation_and_translations() {
+    java.util.Locale originalLocale = org.sikuli.support.ide.SikuliIDEI18N.getLocale();
+    try {
+      // Switch to Arabic
+      java.util.Locale arabic = new java.util.Locale("ar");
+      assertTrue(org.sikuli.support.ide.SikuliIDEI18N.setLocale(arabic));
+      assertTrue(org.sikuli.support.ide.SikuliIDEI18N.isRTL());
+      assertEquals(java.awt.ComponentOrientation.RIGHT_TO_LEFT,
+          org.sikuli.support.ide.SikuliIDEI18N.getComponentOrientation());
+      assertEquals("ملف", org.sikuli.support.ide.SikuliIDEI18N._I("menuFile"));
+      assertEquals("خروج", org.sikuli.support.ide.SikuliIDEI18N._I("menuFileQuit"));
+
+      // Font bootstrap should adapt to Arabic
+      assertDoesNotThrow(org.sikuli.ide.theme.OculixFonts::updatePreferredFonts);
+
+      // Console pane should refresh dynamically in Arabic
+      EditorConsolePane console = new EditorConsolePane();
+      console.init(true);
+      assertDoesNotThrow(console::refreshI18n);
+
+      // Switch back to English
+      java.util.Locale english = new java.util.Locale("en", "US");
+      assertTrue(org.sikuli.support.ide.SikuliIDEI18N.setLocale(english));
+      assertFalse(org.sikuli.support.ide.SikuliIDEI18N.isRTL());
+      assertEquals(java.awt.ComponentOrientation.LEFT_TO_RIGHT,
+          org.sikuli.support.ide.SikuliIDEI18N.getComponentOrientation());
+      assertEquals("File", org.sikuli.support.ide.SikuliIDEI18N._I("menuFile"));
+      assertDoesNotThrow(console::refreshI18n);
+      assertDoesNotThrow(org.sikuli.ide.theme.OculixFonts::updatePreferredFonts);
+    } finally {
+      org.sikuli.support.ide.SikuliIDEI18N.setLocale(originalLocale);
+    }
+  }
 }

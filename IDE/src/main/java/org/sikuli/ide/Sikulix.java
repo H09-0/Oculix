@@ -235,13 +235,7 @@ public class Sikulix {
     // macOS, DejaVu / Noto on Linux) that all carry full Unicode coverage.
     // Trade-off: the user loses the brand typography on their locale — an
     // acceptable cost since unreadable boxes are the worst outcome.
-    if (OculixFonts.currentLocaleNeedsFallback()) {
-      FlatLaf.setPreferredFontFamily(java.awt.Font.DIALOG);
-      FlatLaf.setPreferredMonospacedFontFamily(java.awt.Font.MONOSPACED);
-    } else {
-      FlatLaf.setPreferredFontFamily("Inter");
-      FlatLaf.setPreferredMonospacedFontFamily("JetBrains Mono");
-    }
+    OculixFonts.updatePreferredFonts();
     String ideTheme = PreferencesUser.get().getIdeTheme();
     if (PreferencesUser.THEME_LIGHT.equals(ideTheme)) {
       OculixLightLaf.setup();

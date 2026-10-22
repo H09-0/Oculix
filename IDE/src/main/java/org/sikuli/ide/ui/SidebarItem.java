@@ -28,7 +28,7 @@ public class SidebarItem extends JButton {
     setIcon(icon);
     setText(text);
     setToolTipText(text);
-    setHorizontalAlignment(SwingConstants.LEFT);
+    setHorizontalAlignment(SwingConstants.LEADING);
     setIconTextGap(10);
     setFocusPainted(false);
     setBorderPainted(false);
@@ -42,6 +42,15 @@ public class SidebarItem extends JButton {
     }
 
     addMouseAdapter();
+    addMouseWheelListener(e -> {
+      Component parent = getParent();
+      while (parent != null && !(parent instanceof JScrollPane)) {
+        parent = parent.getParent();
+      }
+      if (parent instanceof JScrollPane) {
+        ((JScrollPane) parent).dispatchEvent(SwingUtilities.convertMouseEvent(this, e, parent));
+      }
+    });
   }
 
   public SidebarItem(String text, Icon icon) {
@@ -71,7 +80,7 @@ public class SidebarItem extends JButton {
       setHorizontalAlignment(SwingConstants.CENTER);
     } else {
       setText(labelText);
-      setHorizontalAlignment(SwingConstants.LEFT);
+      setHorizontalAlignment(SwingConstants.LEADING);
     }
     revalidate();
   }
