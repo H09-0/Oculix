@@ -328,15 +328,45 @@ public class OculixSidebar extends JPanel {
 
   private SidebarSubmenu fileSub, editSub, toolsSub, helpSub;
   private SidebarSubmenu activeHoverSubmenu = null;
-  private final javax.swing.Timer hoverHideTimer = new javax.swing.Timer(380, e -> hideActiveHoverSubmenu());
+  private SidebarItem activeHoverItem = null;
+  private final javax.swing.Timer hoverHideTimer = new javax.swing.Timer(1500, e -> checkAndHideActiveSubmenu());
   {
     hoverHideTimer.setRepeats(false);
   }
 
-  private void hideActiveHoverSubmenu() {
+  private boolean isMouseOverComponentOrMenu(Component button, JPopupMenu menu) {
+    try {
+      PointerInfo pi = MouseInfo.getPointerInfo();
+      if (pi == null) return false;
+      Point p = pi.getLocation();
+
+      if (menu != null && menu.isShowing()) {
+        Point menuLoc = menu.getLocationOnScreen();
+        Rectangle menuRect = new Rectangle(menuLoc.x, menuLoc.y, menu.getWidth(), menu.getHeight());
+        menuRect.grow(10, 10);
+        if (menuRect.contains(p)) return true;
+      }
+
+      if (button != null && button.isShowing()) {
+        Point btnLoc = button.getLocationOnScreen();
+        Rectangle btnRect = new Rectangle(btnLoc.x, btnLoc.y, button.getWidth(), button.getHeight());
+        btnRect.grow(6, 6);
+        if (btnRect.contains(p)) return true;
+      }
+    } catch (Exception ignored) {}
+    return false;
+  }
+
+  private void checkAndHideActiveSubmenu() {
     if (activeHoverSubmenu != null) {
+      if (isMouseOverComponentOrMenu(activeHoverItem, activeHoverSubmenu)) {
+        // Mouse is still inside the menu or over the button — keep it open!
+        hoverHideTimer.restart();
+        return;
+      }
       activeHoverSubmenu.setVisible(false);
       activeHoverSubmenu = null;
+      activeHoverItem = null;
     }
   }
 
@@ -348,6 +378,7 @@ public class OculixSidebar extends JPanel {
         hoverHideTimer.stop();
         submenu.setVisible(false);
         activeHoverSubmenu = null;
+        activeHoverItem = null;
       } else {
         openSubmenu(item, submenu);
       }
@@ -384,6 +415,7 @@ public class OculixSidebar extends JPanel {
 
   private void openSubmenu(SidebarItem item, SidebarSubmenu submenu) {
     activeHoverSubmenu = submenu;
+    activeHoverItem = item;
     hoverHideTimer.stop();
     submenu.showBelow(item);
   }
