@@ -386,12 +386,12 @@ public class Commons {
       if (runningWindows()) {
         String appPath = System.getenv("APPDATA");
         if (appPath != null && !appPath.isEmpty()) {
-          appDataPath = new File(new File(appPath), "Sikulix");
+          appDataPath = new File(new File(appPath), "Oculix");
         }
       } else if (runningMac()) {
-        appDataPath = new File(new File(getUserHome(), "Library/Application Support"), "Sikulix");
+        appDataPath = new File(new File(getUserHome(), "Library/Application Support"), "Oculix");
       } else {
-        appDataPath = new File(getUserHome(), ".Sikulix");
+        appDataPath = new File(getUserHome(), ".Oculix");
       }
       if (appDataPath != null && !appDataPath.exists()) {
         appDataPath.mkdirs();

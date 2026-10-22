@@ -94,8 +94,11 @@ public class EditorPane extends JTextPane implements ThemeAware {
       }
     });
     initKeyMap();
+    codeCompletion = new EditorCodeCompletion(this);
     log("created %d", editorPaneID);
   }
+
+  private EditorCodeCompletion codeCompletion;
 
   EditorPane(SikulixIDE.PaneContext context) {
     this();

@@ -15,12 +15,14 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.File;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.sikuli.ide.theme.OculixColors;
 
 import javax.swing.*;
 import javax.swing.text.*;
@@ -49,6 +51,10 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   //static boolean ENABLE_IO_REDIRECT = true;
 
   private int NUM_PIPES;
+  private JTabbedPane consoleTabs;
+  private JPanel logsPanel;
+  private int terminalCounter = 1;
+  private final java.util.List<InteractiveTerminalPanel> terminalPanels = new java.util.ArrayList<>();
   private JTextPane textArea;
   private JScrollPane scrollPane;
   private Thread[] reader;
@@ -111,15 +117,56 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
 
     // ── Console toolbar : filter, autoscroll, save, copy, clear, report ──
     buildToolbar();
-    add(toolbar, BorderLayout.NORTH);
 
     scrollPane = new JScrollPane(textArea);
     scrollPane.setBorder(BorderFactory.createEmptyBorder());
-    add(scrollPane, BorderLayout.CENTER);
+
+    logsPanel = new JPanel(new BorderLayout());
+    logsPanel.add(toolbar, BorderLayout.NORTH);
+    logsPanel.add(scrollPane, BorderLayout.CENTER);
+
+    removeAll();
+    terminalPanels.clear();
+
+    consoleTabs = new JTabbedPane();
+    consoleTabs.addTab(_I("tabLogs"), new FlatSVGIcon("icons/menu/page.svg", 14, 14), logsPanel);
+
+    // Initial interactive terminal tab
+    addNewTerminalTab();
+
+    add(consoleTabs, BorderLayout.CENTER);
     applyThemeColors();
 
     // Create the popup menu.
     buildPopup();
+  }
+
+  public void addNewTerminalTab() {
+    InteractiveTerminalPanel term = new InteractiveTerminalPanel(terminalCounter++);
+    terminalPanels.add(term);
+    int tabIndex = consoleTabs.getTabCount();
+    consoleTabs.addTab(term.getTitle(), new FlatSVGIcon("icons/sidebar/play.svg", 14, 14), term);
+
+    // Custom tab header with close button (×)
+    JPanel tabHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+    tabHeader.setOpaque(false);
+    JLabel titleLbl = new JLabel(term.getTitle());
+    JButton closeBtn = new JButton("×");
+    closeBtn.setFont(closeBtn.getFont().deriveFont(Font.BOLD, 12f));
+    closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+    closeBtn.setContentAreaFilled(false);
+    closeBtn.setFocusable(false);
+    closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    closeBtn.addActionListener(e -> {
+      term.close();
+      terminalPanels.remove(term);
+      consoleTabs.remove(term);
+    });
+    tabHeader.add(titleLbl);
+    tabHeader.add(closeBtn);
+    consoleTabs.setTabComponentAt(tabIndex, tabHeader);
+    consoleTabs.setSelectedComponent(term);
+    term.requestFocusInWindow();
   }
 
   private void buildToolbar() {
@@ -190,6 +237,10 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     });
     toolbar.add(clearBtn);
 
+    JButton newTermBtn = createToolbarButton(_I("btnNewTerminal"), "icons/sidebar/play.svg", _I("btnNewTerminal"));
+    newTermBtn.addActionListener(e -> addNewTerminalTab());
+    toolbar.add(newTermBtn);
+
     JButton reportBtn = createToolbarButton(_I("consoleReportBug"), "icons/menu/ladybug.svg", _I("consoleReportBugTooltip"));
     reportBtn.addActionListener(e -> {
       // 1) Copy plain-text log to clipboard so the user can paste it directly.
@@ -224,6 +275,9 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     });
     toolbar.add(reportBtn);
 
+    if (consoleTabs != null && consoleTabs.getTabCount() > 0) {
+      consoleTabs.setTitleAt(0, _I("tabLogs"));
+    }
     org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(toolbar);
   }
 
@@ -308,8 +362,12 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       textArea.setCaretColor(caret);
     }
     setBackground(bg);
-    if (scrollPane != null) {
-      scrollPane.getViewport().setBackground(bg);
+    if (consoleTabs != null) {
+      consoleTabs.setBackground(bg);
+      consoleTabs.setForeground(dark ? new Color(0xE6, 0xEA, 0xFB) : Color.BLACK);
+    }
+    for (InteractiveTerminalPanel term : terminalPanels) {
+      term.applyThemeColors(dark);
     }
     if (toolbar != null) {
       Color toolbarBg = dark ? new Color(0x0C, 0x11, 0x2A) : new Color(0xEE, 0xF2, 0xFA);
@@ -630,6 +688,164 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   public void clear() {
     textArea.setText("");
     rawLines.clear();
+  }
+
+  // ── Interactive Bash Terminal Inner Class ──
+
+  static class InteractiveTerminalPanel extends JPanel {
+    private final int id;
+    private final JTextArea terminalArea;
+    private final JTextField inputField;
+    private final JLabel promptLabel;
+    private final java.util.List<String> history = new java.util.ArrayList<>();
+    private int historyIndex = 0;
+    private Process activeProcess = null;
+
+    InteractiveTerminalPanel(int id) {
+      this.id = id;
+      setLayout(new BorderLayout());
+
+      terminalArea = new JTextArea();
+      terminalArea.setEditable(false);
+      terminalArea.setFont(org.sikuli.ide.theme.OculixFonts.mono(12));
+      terminalArea.setMargin(new Insets(6, 8, 6, 8));
+
+      terminalArea.append("OculiX Interactive Terminal #" + id + "\n");
+      terminalArea.append("Type commands below (e.g. ls, pwd, git status, python3)\n\n");
+
+      JScrollPane scroll = new JScrollPane(terminalArea);
+      scroll.setBorder(BorderFactory.createEmptyBorder());
+      scroll.getVerticalScrollBar().setUnitIncrement(16);
+      add(scroll, BorderLayout.CENTER);
+
+      JPanel inputRow = new JPanel(new BorderLayout(6, 0));
+      inputRow.setBorder(BorderFactory.createEmptyBorder(4, 8, 6, 8));
+
+      promptLabel = new JLabel("$ ");
+      promptLabel.setFont(org.sikuli.ide.theme.OculixFonts.mono(12).deriveFont(Font.BOLD));
+      promptLabel.setForeground(OculixColors.OX_CYAN_500);
+      inputRow.add(promptLabel, BorderLayout.LINE_START);
+
+      inputField = new JTextField();
+      inputField.setFont(org.sikuli.ide.theme.OculixFonts.mono(12));
+      inputField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, _I("terminalPlaceholder"));
+
+      inputField.addKeyListener(new java.awt.event.KeyAdapter() {
+        @Override
+        public void keyPressed(java.awt.event.KeyEvent e) {
+          if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER) {
+            String cmd = inputField.getText();
+            if (cmd != null && !cmd.trim().isEmpty()) {
+              executeCommand(cmd.trim());
+            }
+          } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_UP) {
+            if (!history.isEmpty() && historyIndex > 0) {
+              historyIndex--;
+              inputField.setText(history.get(historyIndex));
+            }
+          } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_DOWN) {
+            if (historyIndex < history.size() - 1) {
+              historyIndex++;
+              inputField.setText(history.get(historyIndex));
+            } else {
+              historyIndex = history.size();
+              inputField.setText("");
+            }
+          }
+        }
+      });
+      inputRow.add(inputField, BorderLayout.CENTER);
+      add(inputRow, BorderLayout.SOUTH);
+
+      applyThemeColors(isDarkTheme());
+    }
+
+    String getTitle() {
+      return _I("tabTerminal") + (id > 1 ? " " + id : "");
+    }
+
+    void applyThemeColors(boolean dark) {
+      Color bg = dark ? new Color(0x05, 0x08, 0x1A) : new Color(0xF8, 0xFA, 0xFD);
+      Color fg = dark ? new Color(0xE6, 0xEA, 0xFB) : Color.BLACK;
+      Color inputBg = dark ? new Color(0x0C, 0x14, 0x30) : Color.WHITE;
+
+      terminalArea.setBackground(bg);
+      terminalArea.setForeground(fg);
+      terminalArea.setCaretColor(dark ? OculixColors.OX_CYAN_500 : Color.BLACK);
+
+      inputField.setBackground(inputBg);
+      inputField.setForeground(fg);
+      inputField.setCaretColor(dark ? OculixColors.OX_CYAN_500 : Color.BLACK);
+      setBackground(bg);
+    }
+
+    private static boolean isDarkTheme() {
+      return !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(
+          org.sikuli.basics.PreferencesUser.get().getIdeTheme());
+    }
+
+    private void executeCommand(String cmd) {
+      history.add(cmd);
+      historyIndex = history.size();
+      inputField.setText("");
+
+      terminalArea.append("$ " + cmd + "\n");
+      terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+
+      File workingDir = null;
+      SikulixIDE ide = SikulixIDE.get();
+      if (ide != null && ide.getCurrentWorkspaceDir() != null) {
+        workingDir = ide.getCurrentWorkspaceDir();
+      }
+      if (workingDir == null || !workingDir.isDirectory()) {
+        workingDir = new File(System.getProperty("user.dir", "."));
+      }
+
+      final File finalWorkingDir = workingDir;
+      new Thread(() -> {
+        try {
+          String[] shellCmd;
+          if (org.sikuli.basics.Settings.isWindows()) {
+            shellCmd = new String[]{"cmd.exe", "/c", cmd};
+          } else {
+            shellCmd = new String[]{"/bin/bash", "-c", cmd};
+          }
+          ProcessBuilder pb = new ProcessBuilder(shellCmd);
+          pb.directory(finalWorkingDir);
+          pb.redirectErrorStream(true);
+          activeProcess = pb.start();
+
+          try (java.io.BufferedReader reader = new java.io.BufferedReader(
+              new java.io.InputStreamReader(activeProcess.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+              final String printLine = line;
+              SwingUtilities.invokeLater(() -> {
+                terminalArea.append(printLine + "\n");
+                terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+              });
+            }
+          }
+          activeProcess.waitFor();
+          activeProcess = null;
+          SwingUtilities.invokeLater(() -> {
+            terminalArea.append("\n");
+            terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+          });
+        } catch (Exception ex) {
+          SwingUtilities.invokeLater(() -> {
+            terminalArea.append("Error: " + ex.getMessage() + "\n\n");
+            terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+          });
+        }
+      }, "Terminal-" + id).start();
+    }
+
+    void close() {
+      if (activeProcess != null && activeProcess.isAlive()) {
+        activeProcess.destroyForcibly();
+      }
+    }
   }
 }
 

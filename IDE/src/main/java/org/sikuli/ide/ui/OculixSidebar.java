@@ -40,11 +40,24 @@ public class OculixSidebar extends JPanel {
 
   // Navigation items
   private SidebarItem navFile;
-  private SidebarItem navEdit;
   private SidebarItem navRun;
   private SidebarItem navRunSlow;
   private SidebarItem navTools;
-  private SidebarItem navHelp;
+
+  private JPanel explorerHolder;
+  private ScriptExplorer explorer;
+
+  public void setExplorer(ScriptExplorer explorer) {
+    this.explorer = explorer;
+    if (explorerHolder != null) {
+      explorerHolder.removeAll();
+      if (explorer != null) {
+        explorerHolder.add(explorer, BorderLayout.CENTER);
+      }
+      explorerHolder.revalidate();
+      explorerHolder.repaint();
+    }
+  }
 
   public SidebarItem getNavRun() { return navRun; }
   public SidebarItem getNavRunSlow() { return navRunSlow; }
@@ -137,19 +150,16 @@ public class OculixSidebar extends JPanel {
     projectImages = heroCardRef.metaLabel;
     mainPanel.add(heroCardRef, "growx, gaptop 0, gapbottom 8");
 
-    // ── SCRIPT section ──
-    // Section header values come from _I() — addSectionHeader uppercases
-    // the result so locales whose translation didn't preserve the CAPS
-    // (e.g. zh_CN, ja) still render the consistent kicker style.
-    addSectionHeader(_I("sidebarSectionScript"));
     navFile = new SidebarItem(_I("menuFile"), null);
     navFile.setIcon(new FlatSVGIcon("icons/sidebar/folder.svg", 18, 18));
     navFile.setMnemonic(java.awt.event.KeyEvent.VK_F);
     mainPanel.add(navFile);
-    navEdit = new SidebarItem(_I("menuEdit"), null);
-    navEdit.setIcon(new FlatSVGIcon("icons/sidebar/pencil.svg", 18, 18));
-    navEdit.setMnemonic(java.awt.event.KeyEvent.VK_E);
-    mainPanel.add(navEdit);
+
+    navTools = new SidebarItem(_I("menuTool"), null);
+    navTools.setIcon(new FlatSVGIcon("icons/sidebar/wrench.svg", 18, 18));
+    navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
+    mainPanel.add(navTools);
+
     navRun = new SidebarItem(_I("btnRunLabel"), null);
     navRun.setIcon(new FlatSVGIcon("icons/sidebar/play.svg", 18, 18));
     navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
@@ -163,12 +173,13 @@ public class OculixSidebar extends JPanel {
     navRunSlow.setToolTipText(_I("btnRunSlowMotionLabel") + " (Ctrl+Alt+R)");
     mainPanel.add(navRunSlow);
 
-    // ── TOOLS section ──
-    addSectionHeader(_I("sidebarSectionTools"));
-    navTools = new SidebarItem(_I("menuTool"), null);
-    navTools.setIcon(new FlatSVGIcon("icons/sidebar/wrench.svg", 18, 18));
-    navTools.setMnemonic(java.awt.event.KeyEvent.VK_T);
-    mainPanel.add(navTools);
+    // ── PROJECT EXPLORER (Merged directly into left sidebar) ──
+    explorerHolder = new JPanel(new BorderLayout());
+    explorerHolder.setOpaque(false);
+    if (explorer != null) {
+      explorerHolder.add(explorer, BorderLayout.CENTER);
+    }
+    mainPanel.add(explorerHolder, "grow, push, gaptop 6, gapbottom 8");
 
     // ── STATUS section ──
     // Three glowing dots + label + value (right-aligned). Each dot is a
@@ -203,13 +214,6 @@ public class OculixSidebar extends JPanel {
     lastRunDuration = lastRunCard.durationLabel;
     lastRunTime = lastRunCard.timeLabel;
     mainPanel.add(lastRunCard, "growx, gapbottom 6");
-
-    // ── HELP section ──
-    addSectionHeader(_I("sidebarSectionHelp"));
-    navHelp = new SidebarItem(_I("menuHelp"), null);
-    navHelp.setIcon(new FlatSVGIcon("icons/sidebar/circle-help.svg", 18, 18));
-    navHelp.setMnemonic(java.awt.event.KeyEvent.VK_H);
-    mainPanel.add(navHelp);
 
     // Initial status check
     refreshOcrStatus();
@@ -326,7 +330,7 @@ public class OculixSidebar extends JPanel {
 
   // ── Navigation wiring ──
 
-  private SidebarSubmenu fileSub, editSub, toolsSub, helpSub;
+  private SidebarSubmenu fileSub, toolsSub;
   private SidebarSubmenu activeHoverSubmenu = null;
   private SidebarItem activeHoverItem = null;
   private final javax.swing.Timer hoverHideTimer = new javax.swing.Timer(1500, e -> checkAndHideActiveSubmenu());
@@ -420,19 +424,15 @@ public class OculixSidebar extends JPanel {
     submenu.showBelow(item);
   }
 
-  public void initNavigation(SidebarSubmenu fileSub, SidebarSubmenu editSub,
+  public void initNavigation(SidebarSubmenu fileSub,
                               ActionListener runAction, ActionListener runSlowAction,
-                              SidebarSubmenu toolsSub, SidebarSubmenu helpSub) {
+                              SidebarSubmenu toolsSub) {
     this.fileSub = fileSub;
-    this.editSub = editSub;
     this.toolsSub = toolsSub;
-    this.helpSub = helpSub;
     wireSubmenuHover(navFile, fileSub);
-    wireSubmenuHover(navEdit, editSub);
     if (runAction != null) navRun.addActionListener(runAction);
     if (runSlowAction != null) navRunSlow.addActionListener(runSlowAction);
     wireSubmenuHover(navTools, toolsSub);
-    wireSubmenuHover(navHelp, helpSub);
   }
 
   // Popup submenus live outside the visible window tree until clicked, so
@@ -440,7 +440,7 @@ public class OculixSidebar extends JPanel {
   // each after a theme swap so the next popup render picks up the new LaF
   // instead of showing old Dark colors on a Light theme (and vice-versa).
   public void refreshSubmenuLaF() {
-    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, editSub, toolsSub, helpSub}) {
+    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, toolsSub}) {
       if (sub != null) SwingUtilities.updateComponentTreeUI(sub);
     }
   }

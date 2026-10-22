@@ -38,10 +38,21 @@ class SikuliIDEStatusBar extends JPanel {
     setCaretPosition(1, 1);
     resetMessage();
 
+    JButton btnEditorMode = new JButton(org.sikuli.support.ide.SikuliIDEI18N._I("editorModeF11"));
+    btnEditorMode.setFont(UIManager.getFont("Label.font").deriveFont(10.5f));
+    btnEditorMode.setFocusable(false);
+    btnEditorMode.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    btnEditorMode.addActionListener(e -> {
+      SikulixIDE ide = SikulixIDE.get();
+      if (ide != null) ide.toggleEditorMode();
+    });
+
     add(_lblMsg);
     add(_lblOcrStatus);
     add(new JSeparator(SwingConstants.VERTICAL), "growy");
     add(_lblCaretPos);
+    add(new JSeparator(SwingConstants.VERTICAL), "growy");
+    add(btnEditorMode);
   }
 
   public void setType(String contentType) {

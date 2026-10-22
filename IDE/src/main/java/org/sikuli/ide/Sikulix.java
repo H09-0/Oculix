@@ -303,7 +303,7 @@ public class Sikulix {
     }
 
     //region IDE temp folder
-    File ideTemp = new File(Commons.getTempFolder(), String.format("Sikulix_%d", FileManager.getRandomInt()));
+    File ideTemp = new File(Commons.getTempFolder(), String.format("Oculix_%d", FileManager.getRandomInt()));
     ideTemp.mkdirs();
     try {
       File tempTest = new File(ideTemp, "tempTest.txt");

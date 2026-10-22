@@ -6,6 +6,9 @@ package org.sikuli.ide;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.sikuli.basics.*;
 import org.sikuli.idesupport.IDEDesktopSupport;
 import org.sikuli.idesupport.IDETaskbarSupport;
@@ -313,31 +316,16 @@ public class SikulixIDE extends JFrame {
       }
     });
 
-    // Explorer + Editor in a horizontal split.
-    // The explorer (workspace pane) is hidden by default: when the IDE boots
-    // there's no script open, so a half-empty Workspace column on the left
-    // just steals 180px of editor real-estate and visually duplicates the
-    // sidebar. The split divider sits at 0 → explorer collapsed. As soon as
-    // a script is created or a workspace is loaded, refreshExplorerVisibility()
-    // (called from refreshWorkspace) re-opens the divider to its working width.
-    editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, explorer, codePane);
-    editorSplit.setDividerLocation(0);
-    editorSplit.setResizeWeight(0.0); // editor gets all extra space
-    editorSplit.setContinuousLayout(true);
-    editorSplit.setMinimumSize(new Dimension(200, 150));
-    editorSplit.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, UIManager.getColor("Separator.foreground")));
-    editorSplit.setOneTouchExpandable(true);
+    // Script file explorer is now integrated directly into sidebar
+    editorSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, null, codePane);
+    editorSplit.setDividerSize(0);
 
     Debug.log("IDE: Putting all together");
     JPanel editPane = new JPanel(new BorderLayout(0, 0));
     mainPane = null;
     if (messageArea != null) {
-      // Console always at the bottom (Eclipse-style). The split divider gets
-      // a visible 1px ink-500 line so the editor / log boundary reads clearly
-      // in both themes — without that border, the surfaces blur into each
-      // other (sidebar paper-100 ≈ workspace paper-100 ≈ editor white in light).
       messageArea.setMinimumSize(new Dimension(0, 110));
-      mainPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorSplit, messageArea);
+      mainPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, codePane, messageArea);
       mainPane.setResizeWeight(0.75);
       mainPane.setContinuousLayout(true);
       mainPane.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
@@ -358,7 +346,7 @@ public class SikulixIDE extends JFrame {
       });
       editPane.add(mainPane, BorderLayout.CENTER);
     } else {
-      editPane.add(editorSplit, BorderLayout.CENTER);
+      editPane.add(codePane, BorderLayout.CENTER);
     }
 
     ideContainer.add(editPane, BorderLayout.CENTER);
@@ -372,8 +360,11 @@ public class SikulixIDE extends JFrame {
     // Phase 1b: Create and configure sidebar
     Debug.log("IDE: Putting all together - init sidebar");
     sidebar = new OculixSidebar();
+    sidebar.setExplorer(explorer);
     initSidebarActions();
     initSidebarNavigation();
+    initTopEditorBar();
+    ideContainer.add(topEditorBar, BorderLayout.NORTH);
     sidebar.initFooter(Commons.getSXVersionShort(), e -> refreshAfterThemeChange());
     ideContainer.add(sidebar, BorderLayout.LINE_START);
     updateScriptDependentItems(); // grey out Run/Capture/Record until a script is open
@@ -578,6 +569,15 @@ public class SikulixIDE extends JFrame {
     migrateMenuAccelerators(_viewMenu, im, am);
     migrateMenuAccelerators(_toolMenu, im, am);
     migrateMenuAccelerators(_helpMenu, im, am);
+
+    im.put(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0), "toggleEditorMode");
+    am.put("toggleEditorMode", new AbstractAction() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        toggleEditorMode();
+      }
+    });
+
     Debug.log("IDE: Accelerators migrated to rootPane");
   }
 
@@ -610,18 +610,104 @@ public class SikulixIDE extends JFrame {
     sidebar.initNavItems();
   }
 
-  // Phase 1b: build sidebar submenus from existing menu actions
+  private SidebarSubmenu fileSub;
+  private SidebarSubmenu toolsSub;
+
   private void initSidebarNavigation() {
-    SidebarSubmenu fileSub = buildFileSubmenu();
-    SidebarSubmenu editSub = buildSubmenuFrom(_editMenu);
-    SidebarSubmenu toolsSub = buildToolsSubmenu();
-    SidebarSubmenu helpSub = buildSubmenuFrom(_helpMenu);
-    sidebar.initNavigation(fileSub, editSub,
+    fileSub = buildFileSubmenu();
+    toolsSub = buildToolsSubmenu();
+    sidebar.initNavigation(fileSub,
         e -> btnRun.runCurrentScript(),
         e -> btnRunSlow.runCurrentScript(),
-        toolsSub, helpSub);
+        toolsSub);
     scriptDependentItems.add(sidebar.getNavRun());
     scriptDependentItems.add(sidebar.getNavRunSlow());
+  }
+
+  // ── Top Bar & F11 Editor Mode ──
+
+  private JPanel topEditorBar;
+  private boolean isEditorMode = false;
+  private Rectangle savedWindowBounds = null;
+  private int savedWindowState = JFrame.NORMAL;
+
+  private void initTopEditorBar() {
+    topEditorBar = new JPanel(new BorderLayout(8, 0));
+    topEditorBar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+    topEditorBar.putClientProperty(FlatClientProperties.STYLE, "background: darken(@background, 3%)");
+
+    JPanel leftNav = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+    leftNav.setOpaque(false);
+
+    JButton btnFile = new JButton(_I("menuFile"));
+    btnFile.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
+    btnFile.addActionListener(e -> {
+      if (fileSub != null) fileSub.showBelow(btnFile);
+    });
+    leftNav.add(btnFile);
+
+    JButton btnTools = new JButton(_I("menuTool"));
+    btnTools.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
+    btnTools.addActionListener(e -> {
+      if (toolsSub != null) toolsSub.showBelow(btnTools);
+    });
+    leftNav.add(btnTools);
+
+    JButton btnRunDirect = new JButton(_I("btnRunLabel"), new FlatSVGIcon("icons/sidebar/play.svg", 14, 14));
+    btnRunDirect.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
+    btnRunDirect.setToolTipText(_I("btnRunLabel") + " (Ctrl+R)");
+    btnRunDirect.addActionListener(e -> btnRun.runCurrentScript());
+    leftNav.add(btnRunDirect);
+
+    JButton btnRunSlowDirect = new JButton(_I("btnRunSlowMotionLabel"));
+    FlatSVGIcon slowIcon = new FlatSVGIcon("icons/sidebar/play.svg", 14, 14);
+    slowIcon.setColorFilter(new FlatSVGIcon.ColorFilter(c -> org.sikuli.ide.theme.OculixColors.OX_AMBER_500));
+    btnRunSlowDirect.setIcon(slowIcon);
+    btnRunSlowDirect.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
+    btnRunSlowDirect.setToolTipText(_I("btnRunSlowMotionLabel") + " (Ctrl+Alt+R)");
+    btnRunSlowDirect.addActionListener(e -> btnRunSlow.runCurrentScript());
+    leftNav.add(btnRunSlowDirect);
+
+    scriptDependentItems.add(btnRunDirect);
+    scriptDependentItems.add(btnRunSlowDirect);
+
+    topEditorBar.add(leftNav, BorderLayout.CENTER);
+
+    JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+    rightActions.setOpaque(false);
+    JButton btnExit = new JButton(_I("editorModeExit"));
+    btnExit.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
+    btnExit.setForeground(org.sikuli.ide.theme.OculixColors.OX_CYAN_500);
+    btnExit.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    btnExit.addActionListener(e -> toggleEditorMode());
+    rightActions.add(btnExit);
+
+    topEditorBar.add(rightActions, BorderLayout.LINE_END);
+    topEditorBar.setVisible(false);
+  }
+
+  public void toggleEditorMode() {
+    isEditorMode = !isEditorMode;
+    if (isEditorMode) {
+      savedWindowBounds = ideWindow.getBounds();
+      savedWindowState = ideWindow.getExtendedState();
+      sidebar.setVisible(false);
+      if (topEditorBar != null) {
+        topEditorBar.setVisible(true);
+      }
+      ideWindow.setExtendedState(JFrame.MAXIMIZED_BOTH);
+    } else {
+      if (topEditorBar != null) {
+        topEditorBar.setVisible(false);
+      }
+      sidebar.setVisible(true);
+      ideWindow.setExtendedState(savedWindowState);
+      if (savedWindowBounds != null) {
+        ideWindow.setBounds(savedWindowBounds);
+      }
+    }
+    ideWindow.getContentPane().revalidate();
+    ideWindow.getContentPane().repaint();
   }
 
   // Items that require an open script to be functional
@@ -813,6 +899,13 @@ public class SikulixIDE extends JFrame {
       scriptDependentItems.clear();
       initSidebarActions();
       initSidebarNavigation();
+      if (topEditorBar != null && ideWindow != null) {
+        ideWindow.getContentPane().remove(topEditorBar);
+      }
+      initTopEditorBar();
+      if (ideWindow != null) {
+        ideWindow.getContentPane().add(topEditorBar, BorderLayout.NORTH);
+      }
       updateScriptDependentItems();
       sidebar.refreshI18n();
     }
@@ -1064,7 +1157,7 @@ public class SikulixIDE extends JFrame {
   //<editor-fold desc="03 PaneContext">
   List<PaneContext> contexts = new ArrayList<>();
   List<PaneContext> contextsClosed = new ArrayList<>();
-  String tempName = "sxtemp";
+  String tempName = "untitled_";
   int tempIndex = 1;
 
   PaneContext lastContext = null;
@@ -1890,6 +1983,9 @@ public class SikulixIDE extends JFrame {
     }
 
     public boolean save() {
+      if (isTemp()) {
+        return saveAs();
+      }
       String msg = "";
       boolean success = true;
       try {
