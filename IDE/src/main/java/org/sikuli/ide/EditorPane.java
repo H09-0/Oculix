@@ -32,6 +32,7 @@ import java.awt.datatransfer.*;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelListener;
 import java.io.*;
 import java.util.Date;
 import java.util.HashMap;
@@ -91,6 +92,10 @@ public class EditorPane extends JTextPane implements ThemeAware {
           zoomOut();
         }
         e.consume();
+      } else if (scrollPane != null) {
+        for (MouseWheelListener mwl : scrollPane.getMouseWheelListeners()) {
+          mwl.mouseWheelMoved(e);
+        }
       }
     });
     initKeyMap();

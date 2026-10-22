@@ -803,6 +803,16 @@ public class SikulixIDE extends JFrame {
     scriptDependentItems.add(sub.addItem(_I("btnInsertImageLabel"),
         new FlatSVGIcon("icons/menu/picture.svg", 16, 16), null,
         e -> btnInsertImage.actionPerformed(e)));
+    scriptDependentItems.add(sub.addItem(_I("btnRegionLabel"),
+        new FlatSVGIcon("icons/sidebar/folder.svg", 16, 16), null,
+        e -> { if (btnSubregion != null) btnSubregion.actionPerformed(e); }));
+    scriptDependentItems.add(sub.addItem(_I("btnLocationLabel"),
+        new FlatSVGIcon("icons/sidebar/play.svg", 16, 16), null,
+        e -> { if (btnLocation != null) btnLocation.actionPerformed(e); }));
+    scriptDependentItems.add(sub.addItem(_I("btnOffsetLabel"),
+        new FlatSVGIcon("icons/menu/ne-arrow.svg", 16, 16), null,
+        e -> { if (btnOffset != null) btnOffset.actionPerformed(e); }));
+    sub.addSeparator();
     scriptDependentItems.add(sub.addItem(_I("menuToolRecord"),
         new FlatSVGIcon("icons/menu/red-dot.svg", 16, 16), null,
         e -> btnRecord.actionPerformed(e)));
@@ -3931,13 +3941,16 @@ public class SikulixIDE extends JFrame {
   // doesn't render the legacy top toolbar, so without this exposure the
   // Insert Image action becomes unreachable from the user's IDE chrome.
   private ButtonInsertImage btnInsertImage;
+  private ButtonSubregion btnSubregion;
+  private ButtonLocation btnLocation;
+  private ButtonOffset btnOffset;
 
   private JToolBar initToolbar() {
     JToolBar toolbar = new JToolBar();
     btnInsertImage = new ButtonInsertImage();
-    JButton btnSubregion = new ButtonSubregion();
-    JButton btnLocation = new ButtonLocation();
-    JButton btnOffset = new ButtonOffset();
+    btnSubregion = new ButtonSubregion();
+    btnLocation = new ButtonLocation();
+    btnOffset = new ButtonOffset();
 //TODO ButtonShow/ButtonShowIn
     JButton btnShow = new ButtonShow();
     JButton btnShowIn = new ButtonShowIn();

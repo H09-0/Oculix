@@ -82,6 +82,13 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
 
   private void init() {
     addMouseListener(this);
+    addMouseWheelListener(e -> {
+      if (editorPane != null && editorPane.getScrollPane() != null) {
+        for (MouseWheelListener mwl : editorPane.getScrollPane().getMouseWheelListeners()) {
+          mwl.mouseWheelMoved(e);
+        }
+      }
+    });
     setToolTipText(_I("editorLineNumberTooltip"));
     popMenuLineNumber = new SikuliIDEPopUpMenu("POP_LINE", this);
     if (!popMenuLineNumber.isValidMenu()) {
