@@ -42,8 +42,12 @@ public class OculixSidebar extends JPanel {
   private SidebarItem navFile;
   private SidebarItem navEdit;
   private SidebarItem navRun;
+  private SidebarItem navRunSlow;
   private SidebarItem navTools;
   private SidebarItem navHelp;
+
+  public SidebarItem getNavRun() { return navRun; }
+  public SidebarItem getNavRunSlow() { return navRunSlow; }
 
   // Theme toggle - initialized from user preferences (persisted across sessions)
   private SidebarItem btnTheme; // legacy, kept null after pill switch refactor
@@ -146,10 +150,18 @@ public class OculixSidebar extends JPanel {
     navEdit.setIcon(new FlatSVGIcon("icons/sidebar/pencil.svg", 18, 18));
     navEdit.setMnemonic(java.awt.event.KeyEvent.VK_E);
     mainPanel.add(navEdit);
-    navRun = new SidebarItem(_I("menuRun"), null);
+    navRun = new SidebarItem(_I("btnRunLabel"), null);
     navRun.setIcon(new FlatSVGIcon("icons/sidebar/play.svg", 18, 18));
     navRun.setMnemonic(java.awt.event.KeyEvent.VK_R);
+    navRun.setToolTipText(_I("btnRunLabel") + " (Ctrl+R)");
     mainPanel.add(navRun);
+
+    navRunSlow = new SidebarItem(_I("btnRunSlowMotionLabel"), null);
+    FlatSVGIcon slowIcon = new FlatSVGIcon("icons/sidebar/play.svg", 18, 18);
+    slowIcon.setColorFilter(new FlatSVGIcon.ColorFilter(c -> OculixColors.OX_AMBER_500));
+    navRunSlow.setIcon(slowIcon);
+    navRunSlow.setToolTipText(_I("btnRunSlowMotionLabel") + " (Ctrl+Alt+R)");
+    mainPanel.add(navRunSlow);
 
     // ── TOOLS section ──
     addSectionHeader(_I("sidebarSectionTools"));
@@ -314,19 +326,19 @@ public class OculixSidebar extends JPanel {
 
   // ── Navigation wiring ──
 
-  private SidebarSubmenu fileSub, editSub, runSub, toolsSub, helpSub;
+  private SidebarSubmenu fileSub, editSub, toolsSub, helpSub;
 
   public void initNavigation(SidebarSubmenu fileSub, SidebarSubmenu editSub,
-                              SidebarSubmenu runSub, SidebarSubmenu toolsSub,
-                              SidebarSubmenu helpSub) {
+                              ActionListener runAction, ActionListener runSlowAction,
+                              SidebarSubmenu toolsSub, SidebarSubmenu helpSub) {
     this.fileSub = fileSub;
     this.editSub = editSub;
-    this.runSub = runSub;
     this.toolsSub = toolsSub;
     this.helpSub = helpSub;
     navFile.addActionListener(e -> fileSub.showBelow(navFile));
     navEdit.addActionListener(e -> editSub.showBelow(navEdit));
-    navRun.addActionListener(e -> runSub.showBelow(navRun));
+    if (runAction != null) navRun.addActionListener(runAction);
+    if (runSlowAction != null) navRunSlow.addActionListener(runSlowAction);
     navTools.addActionListener(e -> toolsSub.showBelow(navTools));
     navHelp.addActionListener(e -> helpSub.showBelow(navHelp));
   }
@@ -336,7 +348,7 @@ public class OculixSidebar extends JPanel {
   // each after a theme swap so the next popup render picks up the new LaF
   // instead of showing old Dark colors on a Light theme (and vice-versa).
   public void refreshSubmenuLaF() {
-    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, editSub, runSub, toolsSub, helpSub}) {
+    for (SidebarSubmenu sub : new SidebarSubmenu[]{fileSub, editSub, toolsSub, helpSub}) {
       if (sub != null) SwingUtilities.updateComponentTreeUI(sub);
     }
   }

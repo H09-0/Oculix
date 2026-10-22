@@ -144,33 +144,49 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
     setFont(new Font(PreferencesUser.get().getFontName(), Font.PLAIN, PreferencesUser.get().getFontSize()));
     setMargin(new Insets(3, 3, 3, 3));
-    // Editor background stays white regardless of IDE theme; force dark foreground
-    // and caret so the blinking caret and text remain clearly readable (issue #165).
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
+    applyThemeColors();
     if (getCaret() != null) {
       getCaret().setBlinkRate(500);
-    }
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
     }
 
     SikulixIDE.getStatusbar().setType(paneType);
     log("InitTab: (%s)", paneType);
   }
 
-  // Re-apply editor colors after a LaF change so the caret/foreground stay
-  // readable on the white editor background regardless of dark/light theme.
+  private static boolean isDarkTheme() {
+    String theme = PreferencesUser.get().getIdeTheme();
+    return !PreferencesUser.THEME_LIGHT.equals(theme);
+  }
+
+  public void applyThemeColors() {
+    boolean dark = isDarkTheme();
+    Color bg = dark ? new Color(0x05, 0x08, 0x1A) : Color.WHITE;
+    Color fg = dark ? new Color(0xE6, 0xEA, 0xFB) : Color.BLACK;
+    Color caret = dark ? new Color(0x1E, 0xA5, 0xFF) : Color.BLACK;
+    Color sel = dark ? new Color(0x1C, 0x27, 0x53) : new Color(170, 200, 255);
+
+    setBackground(bg);
+    setForeground(fg);
+    setCaretColor(caret);
+    if (!Settings.isMac()) {
+      setSelectionColor(sel);
+    }
+    if (scrollPane != null) {
+      scrollPane.getViewport().setBackground(bg);
+      scrollPane.setBackground(bg);
+      if (scrollPane.getRowHeader() != null
+          && scrollPane.getRowHeader().getView() instanceof EditorLineNumberView) {
+        ((EditorLineNumberView) scrollPane.getRowHeader().getView()).applyThemeColors();
+      }
+    }
+    repaint();
+  }
+
+  // Re-apply editor colors after a LaF change so the canvas reflects the active theme.
   @Override
   public void updateUI() {
     super.updateUI();
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
-    }
+    applyThemeColors();
   }
 
   // Theme lifecycle: the LaF swap invalidates the ButtonUI of any embedded
@@ -205,16 +221,7 @@ public class EditorPane extends JTextPane implements ThemeAware {
 
   @Override
   public void afterThemeChange() {
-    // The script editor surface is the user's canvas — its colours must not
-    // move under a Dark/Light toggle. Mirror initBeforeLoad() and updateUI()
-    // so the white background + black foreground + black caret + light blue
-    // selection are the single visual constant across theme switches.
-    setBackground(Color.WHITE);
-    setForeground(Color.BLACK);
-    setCaretColor(Color.BLACK);
-    if (!Settings.isMac()) {
-      setSelectionColor(new Color(170, 200, 255));
-    }
+    applyThemeColors();
     if (savedThumbButtons == null || savedThumbButtons.isEmpty()) return;
     if (!(getDocument() instanceof DefaultStyledDocument)) return;
     DefaultStyledDocument doc = (DefaultStyledDocument) getDocument();

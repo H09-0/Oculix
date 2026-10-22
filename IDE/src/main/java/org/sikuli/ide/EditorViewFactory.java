@@ -453,19 +453,21 @@ class SyntaxHighlightLabelView extends LabelView {
     int sy = alloc.y + alloc.height - _fMetrics.getDescent();
     int i = 0;
 
+    Color defaultTextColor = getDefaultTextColor();
     for (Map.Entry<Integer, Integer> entry : posMap.entrySet()) {
       int start = entry.getKey();
       int end = entry.getValue();
 
       if (i <= start) {
-        g2d.setColor(Color.black);
+        g2d.setColor(defaultTextColor);
         String str = text.substring(i, start);
         sx = drawString(g2d, str, sx, sy);
       } else {
         break;
       }
 
-      g2d.setColor(colorMap.get(start));
+      Color tokenColor = colorMap.get(start);
+      g2d.setColor(tokenColor != null ? tokenColor : defaultTextColor);
       i = end;
       String str = text.substring(start, i);
       /*
@@ -476,9 +478,9 @@ class SyntaxHighlightLabelView extends LabelView {
       sx = drawString(g2d, str, sx, sy);
     }
 
-    // Paint possible remaining text black
+    // Paint possible remaining text
     if (i < text.length()) {
-      g2d.setColor(Color.black);
+      g2d.setColor(defaultTextColor);
       String str = text.substring(i, text.length());
       drawString(g2d, str, sx, sy);
     }
@@ -514,17 +516,49 @@ class SyntaxHighlightLabelView extends LabelView {
     return x;
   }
 
+  private Color getDefaultTextColor() {
+    Container c = getContainer();
+    if (c != null && c.getForeground() != null) {
+      return c.getForeground();
+    }
+    boolean dark = !PreferencesUser.THEME_LIGHT.equals(PreferencesUser.get().getIdeTheme());
+    return dark ? new Color(0xE6, 0xEA, 0xFB) : Color.black;
+  }
+
+  private static Color adaptColorForDark(Color c) {
+    if (Color.blue.equals(c)) {
+      return new Color(0x61, 0xAF, 0xEF); // vibrant keyword blue/cyan
+    }
+    if (new Color(128, 0, 0).equals(c)) {
+      return new Color(0xA8, 0xEE, 0x8A); // string literal green
+    }
+    if (new Color(128, 64, 0).equals(c)) {
+      return new Color(0xFF, 0xC8, 0x57); // numbers amber/gold
+    }
+    if (new Color(63, 127, 127).equals(c)) {
+      return new Color(0x56, 0xB6, 0xC2); // Sikuli methods cyan/teal
+    }
+    if (new Color(215, 41, 56).equals(c)) {
+      return new Color(0xE0, 0x6C, 0x75); // Sikuli classes coral red
+    }
+    return c;
+  }
+
   void buildColorMaps(String text, Map<Integer, Integer> posMap,
           Map<Integer, Color> colorMap) {
+    boolean dark = !PreferencesUser.THEME_LIGHT.equals(PreferencesUser.get().getIdeTheme());
 
     // Match all regexes on this snippet, store positions
     for (Map.Entry<Pattern, Color> entry : patternColors.entrySet()) {
-
       Matcher matcher = entry.getKey().matcher(text);
 
       while (matcher.find()) {
         posMap.put(matcher.start(1), matcher.end());
-        colorMap.put(matcher.start(1), entry.getValue());
+        Color c = entry.getValue();
+        if (dark) {
+          c = adaptColorForDark(c);
+        }
+        colorMap.put(matcher.start(1), c);
       }
     }
   }

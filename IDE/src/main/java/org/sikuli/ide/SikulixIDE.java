@@ -614,14 +614,18 @@ public class SikulixIDE extends JFrame {
   private void initSidebarNavigation() {
     SidebarSubmenu fileSub = buildFileSubmenu();
     SidebarSubmenu editSub = buildSubmenuFrom(_editMenu);
-    SidebarSubmenu runSub = buildRunSubmenu();
     SidebarSubmenu toolsSub = buildToolsSubmenu();
     SidebarSubmenu helpSub = buildSubmenuFrom(_helpMenu);
-    sidebar.initNavigation(fileSub, editSub, runSub, toolsSub, helpSub);
+    sidebar.initNavigation(fileSub, editSub,
+        e -> btnRun.runCurrentScript(),
+        e -> btnRunSlow.runCurrentScript(),
+        toolsSub, helpSub);
+    scriptDependentItems.add(sidebar.getNavRun());
+    scriptDependentItems.add(sidebar.getNavRunSlow());
   }
 
   // Items that require an open script to be functional
-  private java.util.List<JMenuItem> scriptDependentItems = new ArrayList<>();
+  private java.util.List<Component> scriptDependentItems = new ArrayList<>();
 
   private SidebarSubmenu buildFileSubmenu() {
     SidebarSubmenu sub = new SidebarSubmenu();
@@ -754,8 +758,8 @@ public class SikulixIDE extends JFrame {
 
   private void updateScriptDependentItems() {
     boolean hasScript = !contexts.isEmpty();
-    for (JMenuItem item : scriptDependentItems) {
-      item.setEnabled(hasScript);
+    for (Component item : scriptDependentItems) {
+      if (item != null) item.setEnabled(hasScript);
     }
   }
 
@@ -812,6 +816,7 @@ public class SikulixIDE extends JFrame {
 
     // 4. Rebuild sidebar actions and navigation
     if (sidebar != null) {
+      scriptDependentItems.clear();
       initSidebarActions();
       initSidebarNavigation();
       updateScriptDependentItems();

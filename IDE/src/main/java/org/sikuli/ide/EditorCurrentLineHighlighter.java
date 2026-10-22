@@ -17,12 +17,18 @@ public class EditorCurrentLineHighlighter implements CaretListener {
   private final Highlighter.HighlightPainter painter;
   private Object highlight = null;
 
+  static Color getHighlightColor() {
+    boolean dark = !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(
+        org.sikuli.basics.PreferencesUser.get().getIdeTheme());
+    return dark ? new Color(0x10, 0x18, 0x38) : DEFAULT_COLOR;
+  }
+
   public EditorCurrentLineHighlighter(JTextPane textPane) {
     this(textPane, null);
   }
 
   public EditorCurrentLineHighlighter(JTextPane textPane, Color highlightColor) {
-    Color c = highlightColor != null ? highlightColor : DEFAULT_COLOR;
+    Color c = highlightColor != null ? highlightColor : getHighlightColor();
     MyHighlighter h = new MyHighlighter();
     textPane.setHighlighter(h);
     painter = new DefaultHighlighter.DefaultHighlightPainter(c);
@@ -51,7 +57,8 @@ public class EditorCurrentLineHighlighter implements CaretListener {
       }
       removeLineHighlight(comp);
       try {
-        highlight = comp.getHighlighter().addHighlight(start, end, painter);
+        Highlighter.HighlightPainter activePainter = new DefaultHighlighter.DefaultHighlightPainter(getHighlightColor());
+        highlight = comp.getHighlighter().addHighlight(start, end, activePainter);
         comp.repaint();
       } catch (BadLocationException ex) {
         Debug.error(me + "Problem while highlighting line %d\n%s", pos, ex.getMessage());

@@ -62,10 +62,22 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
     editorPane.addPropertyChangeListener(handler);
     editorPane.addComponentListener(handler);
 
-    setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
-    setForeground(FG_COLOR);
-    setBackground(BG_COLOR);
+    applyThemeColors();
     init();
+  }
+
+  public void applyThemeColors() {
+    boolean dark = !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(
+        org.sikuli.basics.PreferencesUser.get().getIdeTheme());
+    BG_COLOR = dark ? new Color(0x0A, 0x10, 0x28) : new Color(241, 241, 241);
+    selBG_COLOR = dark ? new Color(0x12, 0x1A, 0x3A) : new Color(220, 220, 220);
+    FG_COLOR = dark ? new Color(0x7D, 0x8B, 0xC9) : Color.GRAY;
+    Color border = dark ? new Color(0x1C, 0x27, 0x53) : new Color(155, 155, 155);
+
+    setBackground(BG_COLOR);
+    setForeground(FG_COLOR);
+    setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, border));
+    repaint();
   }
 
   private void init() {

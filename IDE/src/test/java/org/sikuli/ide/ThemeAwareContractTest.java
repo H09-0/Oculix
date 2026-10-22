@@ -114,4 +114,15 @@ class ThemeAwareContractTest {
       org.sikuli.support.ide.SikuliIDEI18N.setLocale(originalLocale);
     }
   }
+
+  @Test
+  void editorPane_adapts_background_and_foreground_to_theme() {
+    assertDoesNotThrow(() -> {
+      EditorPane pane = new EditorPane();
+      pane.applyThemeColors();
+      assertNotNull(pane.getBackground());
+      assertNotNull(pane.getForeground());
+      assertNotNull(pane.getCaretColor());
+    });
+  }
 }
