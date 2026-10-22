@@ -31,7 +31,6 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
   private File projectFolder = null;
   private JLabel titleLabel;
-  private JPanel headerActions;
 
   // Project Tree components (VS Code style)
   private JTree projectTree;
@@ -71,50 +70,22 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
   private void buildHeader() {
     JPanel header = new JPanel(new BorderLayout());
     header.setOpaque(false);
-    header.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 8));
+    header.setBorder(BorderFactory.createEmptyBorder(8, 12, 6, 12));
 
     titleLabel = new JLabel(_I("projectExplorerTitle"));
     titleLabel.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 12f));
     header.add(titleLabel, BorderLayout.CENTER);
 
-    headerActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
-    headerActions.setOpaque(false);
-
-    JButton btnNewFile = createHeaderButton("icons/menu/page.svg", _I("projectExplorerNewFile"),
-        e -> createNewFileIn(getSelectedOrProjectDir()));
-    JButton btnNewFolder = createHeaderButton("icons/sidebar/folder.svg", _I("projectExplorerNewFolder"),
-        e -> createNewFolderIn(getSelectedOrProjectDir()));
-    JButton btnRefresh = createHeaderButton("icons/menu/up-arrow.svg", _I("projectExplorerRefresh"),
-        e -> refreshProject());
-    JButton btnClose = createHeaderButton("icons/menu/clear.svg", _I("projectExplorerCollapse"),
-        e -> closeProject());
-
-    headerActions.add(btnNewFile);
-    headerActions.add(btnNewFolder);
-    headerActions.add(btnRefresh);
-    headerActions.add(btnClose);
-    headerActions.setVisible(false);
-
-    header.add(headerActions, BorderLayout.LINE_END);
     add(header, BorderLayout.NORTH);
-  }
-
-  private JButton createHeaderButton(String iconPath, String tooltip, ActionListener action) {
-    JButton btn = new JButton(new FlatSVGIcon(iconPath, 14, 14));
-    btn.setToolTipText(tooltip);
-    btn.setFocusable(false);
-    btn.setContentAreaFilled(false);
-    btn.setBorderPainted(false);
-    btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    btn.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
-    btn.addActionListener(action);
-    return btn;
   }
 
   // ── VS Code-style Project File Tree ──
 
   private void buildProjectTree() {
+    UIManager.put("Tree.paintLines", true);
     projectTree = new JTree();
+    projectTree.putClientProperty("JTree.lineStyle", "Angled");
+    projectTree.putClientProperty(FlatClientProperties.STYLE, "paintLines: true; showCellFocusBorder: false");
     projectTree.setOpaque(false);
     projectTree.setRootVisible(true);
     projectTree.setShowsRootHandles(true);
@@ -226,7 +197,6 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
     titleLabel.setText(folder.getName());
     titleLabel.setIcon(new FlatSVGIcon("icons/sidebar/folder.svg", 15, 15));
-    headerActions.setVisible(true);
 
     FileNode root = new FileNode(folder);
     buildTree(root, folder, 0);
@@ -258,7 +228,6 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     projectFolder = null;
     titleLabel.setText(_I("projectExplorerTitle"));
     titleLabel.setIcon(null);
-    headerActions.setVisible(false);
     showEmptyState();
 
     org.sikuli.ide.SikulixIDE ide = org.sikuli.ide.SikulixIDE.get();

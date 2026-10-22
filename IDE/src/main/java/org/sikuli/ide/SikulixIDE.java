@@ -631,11 +631,6 @@ public class SikulixIDE extends JFrame {
     SidebarSubmenu sub = new SidebarSubmenu();
     int scMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 
-    // ── Nouveau ──
-    JMenuItem newHeader = new JMenuItem(_I("menuFileNew"));
-    newHeader.setEnabled(false);
-    newHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
-    sub.add(newHeader);
     sub.addItem(_I("menuFileNewFile"),
         new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
@@ -645,11 +640,8 @@ public class SikulixIDE extends JFrame {
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, InputEvent.SHIFT_DOWN_MASK | scMask),
         e -> openNewWorkspaceDialog());
 
-    // ── Ouvrir ──
-    JMenuItem openHeader = new JMenuItem(_I("menuFileOpen"));
-    openHeader.setEnabled(false);
-    openHeader.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
-    sub.add(openHeader);
+    sub.addSeparator();
+
     sub.addItem(_I("menuFileOpenFile"),
         new FlatSVGIcon("icons/menu/page.svg", 16, 16),
         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
@@ -932,12 +924,11 @@ public class SikulixIDE extends JFrame {
           }
         }
       } else if (!item.isEnabled()) {
-        // Section header label (disabled bold item) — reproduce in submenu
-        JMenuItem header = new JMenuItem(item.getText());
-        header.setEnabled(false);
-        header.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 11f));
-        sub.add(header);
-        lastWasSeparator = true; // treat as separator to avoid doubles
+        // Skip disabled section header labels in sidebar submenus so menus contain only real actionable choices
+        if (!lastWasSeparator) {
+          sub.addSeparator();
+          lastWasSeparator = true;
+        }
       } else {
         ActionListener[] listeners = item.getActionListeners();
         sub.addItem(item.getText(), item.getAccelerator(),
@@ -2922,8 +2913,6 @@ public class SikulixIDE extends JFrame {
       _fileMenu.addSeparator();
     }
 
-    // ── Nouveau ──
-    _fileMenu.add(createSectionLabel(_I("menuFileNew")));
     _fileMenu.add(createMenuItem(_I("menuFileNewFile"),
             new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, scMask),
@@ -2933,8 +2922,8 @@ public class SikulixIDE extends JFrame {
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_N, InputEvent.SHIFT_DOWN_MASK | scMask),
             e -> openNewWorkspaceDialog()));
 
-    // ── Ouvrir ──
-    _fileMenu.add(createSectionLabel(_I("menuFileOpen")));
+    _fileMenu.addSeparator();
+
     _fileMenu.add(createMenuItem(_I("menuFileOpenFile"),
             new FlatSVGIcon("icons/menu/page.svg", 16, 16),
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_O, scMask),
