@@ -53,12 +53,19 @@ public class PatternWindow extends JFrame {
 	private void init() {
 		setTitle(_I("winPatternSettings"));
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-		context = sikulixide.getActiveContext();
+		if (sikulixide == null) {
+			sikulixide = SikulixIDE.get();
+		}
+		context = sikulixide != null ? sikulixide.getActiveContext() : null;
+		if (context == null || context.getPane() == null || imgBtn == null) {
+			dispose();
+			return;
+		}
 
 		currentPane = context.getPane();
 
 		imgFile = imgBtn.getFilename();
-		imgName = FilenameUtils.getName(imgFile);
+		imgName = imgFile != null ? FilenameUtils.getName(imgFile) : "";
 
 		_simg = null;
 		if (currentPane.hasScreenshotImage(imgName)) {

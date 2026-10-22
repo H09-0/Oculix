@@ -87,6 +87,9 @@ public class WorkspaceDialog extends JDialog {
 
     // Enter key = Create
     getRootPane().setDefaultButton(okBtn);
+
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(content);
   }
 
   private void onCreateClicked() {
@@ -118,11 +121,12 @@ public class WorkspaceDialog extends JDialog {
     // open/save, workspace new/open, recorder image picker.
     org.sikuli.util.SikulixFileChooser.persistLastDir(workspaceDir);
 
-    // Create workspace.json
+    // Create workspace.json with explicit UTF-8 encoding
     try {
       File wsFile = new File(workspaceDir, "workspace.json");
       String json = buildWorkspaceJson(name);
-      try (FileWriter writer = new FileWriter(wsFile)) {
+      try (java.io.Writer writer = new java.io.OutputStreamWriter(
+          new java.io.FileOutputStream(wsFile), java.nio.charset.StandardCharsets.UTF_8)) {
         writer.write(json);
       }
       confirmed = true;

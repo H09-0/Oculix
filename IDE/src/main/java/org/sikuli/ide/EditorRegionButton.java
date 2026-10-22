@@ -69,13 +69,17 @@ class EditorRegionButton extends JButton implements ActionListener, EventObserve
 
   private BufferedImage getRegionImage(int x, int y, int w, int h) {
     Region region = Region.create(x, y, w, h);
-    IScreen _screen = region.getScreen();
-    ScreenImage simg = _screen.capture();
-    int scr_w = simg.getRect().width, scr_h = simg.getRect().height;
+    IScreen _screen = region != null ? region.getScreen() : null;
+    ScreenImage simg = _screen != null ? _screen.capture() : null;
+    if (simg == null) {
+      return new BufferedImage(Math.max(1, w), Math.max(1, h), BufferedImage.TYPE_INT_RGB);
+    }
+    int raw_w = simg.getRect().width;
+    int raw_h = Math.max(1, simg.getRect().height);
     int max_h = 80; // FIXME: put max_h in UserPreferences
-    float scale = (float) max_h / scr_h;
-    scr_w *= scale;
-    scr_h *= scale;
+    float scale = (float) max_h / raw_h;
+    int scr_w = Math.max(1, (int) (raw_w * scale));
+    int scr_h = Math.max(1, (int) (raw_h * scale));
     BufferedImage screen = new BufferedImage(scr_w, scr_h, BufferedImage.TYPE_INT_RGB);
     Graphics2D screen_g2d = screen.createGraphics();
     try {

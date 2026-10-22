@@ -2652,12 +2652,12 @@ public class SikulixIDE extends JFrame {
     if (wsJson.exists()) {
       try {
         String content = org.sikuli.support.FileManager.readFileToString(wsJson);
-        // Simple JSON name extraction
-        int nameIdx = content.indexOf("\"name\"");
-        if (nameIdx > 0) {
-          int valueStart = content.indexOf("\"", nameIdx + 7) + 1;
-          int valueEnd = content.indexOf("\"", valueStart);
-          currentWorkspaceName = content.substring(valueStart, valueEnd);
+        // Robust JSON name extraction
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"name\"\\s*:\\s*\"([^\"]*)\"").matcher(content);
+        if (m.find()) {
+          currentWorkspaceName = m.group(1);
+        } else {
+          currentWorkspaceName = dir.getName();
         }
       } catch (Exception e) {
         currentWorkspaceName = dir.getName();

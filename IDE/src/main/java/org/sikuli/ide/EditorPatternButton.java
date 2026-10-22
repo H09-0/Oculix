@@ -120,8 +120,12 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
         btn.setExact(true);
         btn.setSimilarity(0.99);
       } else if (tok.startsWith("Pattern")) {
-        String filename = FileManager.slashify(tok.substring(
-                tok.indexOf("\"") + 1, tok.lastIndexOf("\"")), false);
+        int q1 = tok.indexOf("\"");
+        int q2 = tok.lastIndexOf("\"");
+        if (q1 < 0 || q2 <= q1) {
+          return null;
+        }
+        String filename = FileManager.slashify(tok.substring(q1 + 1, q2), false);
         Image img = Image.createSilent(filename);
         if (img.isValid()) {
           btn.setImage(img);
@@ -137,14 +141,21 @@ class EditorPatternButton extends EditorImageButton implements ActionListener, S
         }
       } else if (tok.startsWith("firstN")) { // FIXME: replace with limit/max
         String strArg = tok.substring(tok.lastIndexOf("(") + 1);
-        btn._numMatches = Integer.parseInt(strArg);
+        try {
+          btn._numMatches = Integer.parseInt(strArg.trim());
+        } catch (NumberFormatException e) {
+          return null;
+        }
       } else if (tok.startsWith("targetOffset")) {
         String strArg = tok.substring(tok.lastIndexOf("(") + 1);
         String[] args = strArg.split(",");
+        if (args.length < 2) {
+          return null;
+        }
         try {
           Location offset = new Location(0, 0);
-          offset.x = Integer.parseInt(args[0]);
-          offset.y = Integer.parseInt(args[1]);
+          offset.x = Integer.parseInt(args[0].trim());
+          offset.y = Integer.parseInt(args[1].trim());
           btn.setTargetOffset(offset);
         } catch (NumberFormatException e) {
           return null;

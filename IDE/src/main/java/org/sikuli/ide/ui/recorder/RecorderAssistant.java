@@ -195,6 +195,9 @@ public class RecorderAssistant extends JDialog {
     bottomRow.add(btnClear, "grow");
     content.add(bottomRow, "gaptop 4");
 
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(this);
+    org.sikuli.support.ide.SikuliIDEI18N.applyOrientation(content);
+
     setContentPane(content);
   }
 
@@ -303,22 +306,19 @@ public class RecorderAssistant extends JDialog {
 
     int choice;
     if (!languageMatches && paneLang != null) {
-      String[] opts = {"New Script", "Cancel"};
+      String[] opts = {_I("recorderAssistantDlgNewScript"), _I("cancel")};
       int pick = JOptionPane.showOptionDialog(this,
-          "The current script is " + paneLang + " but the Recorder generated "
-              + recorderLang + " code.\nInserting here would produce invalid code."
-              + "\n\nCreate a new " + recorderLang + " script with the " + model.size()
-              + " generated line(s)?",
-          "Language mismatch",
+          _I("recorderAssistantDlgLanguageMismatchBody", paneLang, recorderLang),
+          _I("recorderAssistantDlgLanguageMismatchTitle"),
           JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
           null, opts, opts[0]);
       if (pick != 0) return;
       choice = 1; // force New Script path below
     } else {
-      String[] options = {"Current Script", "New Script", "Cancel"};
+      String[] options = {_I("recorderAssistantDlgCurrentScript"), _I("recorderAssistantDlgNewScript"), _I("cancel")};
       choice = JOptionPane.showOptionDialog(this,
-          "Insert " + model.size() + " line(s) of generated code:",
-          "Insert Code",
+          _I("recorderAssistantDlgInsertNLines", model.size()),
+          _I("recorderAssistantDlgInsertCode"),
           JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE,
           null, options, options[0]);
       if (choice == 2 || choice < 0) return;
