@@ -851,10 +851,12 @@ public class Key {
     String ret;
     if (code == KeyEvent.VK_ALT || code == KeyEvent.VK_CONTROL || code == KeyEvent.VK_SHIFT) {
       ret = txtMod;
+    } else if (txtMod == null || txtMod.trim().isEmpty()) {
+      ret = txtCode;
     } else {
       ret = txtMod + " " + txtCode;
     }
-    return ret;
+    return ret != null ? ret.trim() : "";
   }
 
 //  static class ShowKeyBoardSetupWindow extends Thread {

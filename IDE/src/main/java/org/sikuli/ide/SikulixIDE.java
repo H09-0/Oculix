@@ -4321,7 +4321,7 @@ public class SikulixIDE extends JFrame {
   //<editor-fold desc="21 Init Run Buttons">
   class ButtonRun extends ButtonOnToolbar {
 
-    private Thread thread = null;
+    volatile Thread runningScriptThread = null;
 
     ButtonRun() {
       super();
@@ -4364,7 +4364,7 @@ public class SikulixIDE extends JFrame {
       String contextName = context.getName();
       context.save();
 
-      new Thread(new Runnable() {
+      runningScriptThread = new Thread(new Runnable() {
         @Override
         public void run() {
           if (System.out.checkError()) {
@@ -4427,7 +4427,8 @@ public class SikulixIDE extends JFrame {
           Commons.cleanUpAfterScript();
           SikulixIDE.showAgain();
         }
-      }).start();
+      });
+      runningScriptThread.start();
     }
 
     void doBeforeRun() {
@@ -4591,19 +4592,75 @@ public class SikulixIDE extends JFrame {
   }
 
   void installStopHotkey() {
-    HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
-      @Override
-      public void hotkeyPressed(HotkeyEvent e) {
-        onStopRunning();
+    // 1. System-wide low-level native hook via JNativeHook (GlobalScreen)
+    try {
+      if (!com.github.kwhat.jnativehook.GlobalScreen.isNativeHookRegistered()) {
+        java.util.logging.Logger logger = java.util.logging.Logger.getLogger(
+            com.github.kwhat.jnativehook.GlobalScreen.class.getPackage().getName());
+        logger.setLevel(java.util.logging.Level.OFF);
+        logger.setUseParentHandlers(false);
+        com.github.kwhat.jnativehook.GlobalScreen.registerNativeHook();
       }
-    });
+      com.github.kwhat.jnativehook.GlobalScreen.addNativeKeyListener(new com.github.kwhat.jnativehook.keyboard.NativeKeyListener() {
+        @Override
+        public void nativeKeyPressed(com.github.kwhat.jnativehook.keyboard.NativeKeyEvent e) {
+          if (e.getKeyCode() == com.github.kwhat.jnativehook.keyboard.NativeKeyEvent.VC_F9) {
+            onStopRunning();
+          }
+        }
+      });
+    } catch (Throwable t) {
+      log("GlobalScreen F9 native hook registration notice: %s", t.getMessage());
+    }
+
+    // 2. Global HotkeyManager registration
+    try {
+      HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
+        @Override
+        public void hotkeyPressed(HotkeyEvent e) {
+          onStopRunning();
+        }
+      });
+    } catch (Throwable ignored) {}
+
+    // 3. AWT Global event listener (captures F9 in any Java window)
+    Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
+      if (e instanceof KeyEvent) {
+        KeyEvent ke = (KeyEvent) e;
+        if (ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyCode() == KeyEvent.VK_F9) {
+          onStopRunning();
+        }
+      }
+    }, AWTEvent.KEY_EVENT_MASK);
   }
 
   void onStopRunning() {
-    log("AbortKey was pressed: aborting all running scripts");
+    log("Stop key (F9) pressed: aborting all running scripts and showing IDE");
     Runner.abortAll();
+    if (btnRun != null && btnRun.runningScriptThread != null && btnRun.runningScriptThread.isAlive()) {
+      try {
+        btnRun.runningScriptThread.interrupt();
+      } catch (Exception ignored) {}
+    }
+    if (btnRunSlow != null && btnRunSlow.runningScriptThread != null && btnRunSlow.runningScriptThread.isAlive()) {
+      try {
+        btnRunSlow.runningScriptThread.interrupt();
+      } catch (Exception ignored) {}
+    }
     EventQueue.invokeLater(() -> {
-      btnRecord.stopRecord();
+      if (btnRecord != null && btnRecord.isRunning()) {
+        btnRecord.stopRecord();
+      }
+      Commons.cleanUpAfterScript();
+      SikulixIDE.showAgain();
+      if (ideWindow != null) {
+        ideWindow.setVisible(true);
+        ideWindow.toFront();
+        ideWindow.requestFocus();
+      }
+      if (getStatusbar() != null) {
+        getStatusbar().setMessage(_I("msgStopped") + " (F9)");
+      }
     });
   }
   //</editor-fold>

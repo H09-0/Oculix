@@ -6,6 +6,7 @@ package org.sikuli.basics;
 import java.awt.Dimension;
 import java.awt.Event;
 import java.awt.Point;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -168,7 +169,11 @@ public class PreferencesUser {
   }
 
   public int getStopHotkey() {
-    return pref.getInt("STOP_HOTKEY", 67); // default: 'c'
+    int key = pref.getInt("STOP_HOTKEY", KeyEvent.VK_F9);
+    if (key == 67) { // migrate legacy default 'c' (67) to F9
+      return KeyEvent.VK_F9;
+    }
+    return key;
   }
 
   public void setStopHotkeyModifiers(int mod) {
@@ -176,7 +181,11 @@ public class PreferencesUser {
   }
 
   public int getStopHotkeyModifiers() {
-    return pref.getInt("STOP_HOTKEY_MODIFIERS", defaultStopHotkeyModifiers());
+    int mod = pref.getInt("STOP_HOTKEY_MODIFIERS", 0);
+    if (mod == defaultStopHotkeyModifiers()) {
+      return 0; // migrate legacy default modifiers to direct single key F9
+    }
+    return mod;
   }
 
   private int defaultStopHotkeyModifiers() {
