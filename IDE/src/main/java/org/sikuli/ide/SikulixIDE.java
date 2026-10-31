@@ -77,6 +77,10 @@ public class SikulixIDE extends JFrame {
 
   static final String me = "IDE: ";
 
+  // Keep a handle to the original stdout/stderr before EditorConsolePane redirects them
+  private static final java.io.PrintStream REAL_STDOUT = System.out;
+  private static final java.io.PrintStream REAL_STDERR = System.err;
+
   private static void log(String message, Object... args) {
     Debug.logx(3, me + message, args);
   }
@@ -212,6 +216,8 @@ public class SikulixIDE extends JFrame {
     if (Sikulix.ideWithConsole) {
       get().messages = new EditorConsolePane();
     }
+    // Install F9 stop hotkey early, before Jython init (which may take time)
+    sikulixIDE.installStopHotkey();
     IDESupport.initRunners();
     Commons.startLog(1, "IDESupport ready --- GUI start (%4.1f)", Commons.getSinceStart());
 
@@ -274,7 +280,7 @@ public class SikulixIDE extends JFrame {
     setWindow();
 
     installCaptureHotkey();
-    installStopHotkey();
+    // installStopHotkey() is called earlier in start() before Jython init
 
     ideWindow.setSize(ideWindowRect.getSize());
     ideWindow.setLocation(ideWindowRect.getLocation());
@@ -4592,7 +4598,9 @@ public class SikulixIDE extends JFrame {
   }
 
   void installStopHotkey() {
-    // 1. System-wide low-level native hook via JNativeHook (GlobalScreen)
+    boolean anyLayerInstalled = false;
+
+    // Layer 1: JNativeHook GlobalScreen — system-wide, works even when IDE is hidden
     try {
       if (!com.github.kwhat.jnativehook.GlobalScreen.isNativeHookRegistered()) {
         java.util.logging.Logger logger = java.util.logging.Logger.getLogger(
@@ -4601,19 +4609,23 @@ public class SikulixIDE extends JFrame {
         logger.setUseParentHandlers(false);
         com.github.kwhat.jnativehook.GlobalScreen.registerNativeHook();
       }
-      com.github.kwhat.jnativehook.GlobalScreen.addNativeKeyListener(new com.github.kwhat.jnativehook.keyboard.NativeKeyListener() {
-        @Override
-        public void nativeKeyPressed(com.github.kwhat.jnativehook.keyboard.NativeKeyEvent e) {
-          if (e.getKeyCode() == com.github.kwhat.jnativehook.keyboard.NativeKeyEvent.VC_F9) {
-            onStopRunning();
-          }
-        }
-      });
+      com.github.kwhat.jnativehook.GlobalScreen.addNativeKeyListener(
+          new com.github.kwhat.jnativehook.keyboard.NativeKeyListener() {
+            @Override
+            public void nativeKeyPressed(com.github.kwhat.jnativehook.keyboard.NativeKeyEvent e) {
+              // NativeKeyEvent.VC_F9 = 67 (JNativeHook native code, NOT AWT)
+              if (e.getKeyCode() == com.github.kwhat.jnativehook.keyboard.NativeKeyEvent.VC_F9) {
+                onStopRunning();
+              }
+            }
+          });
+      anyLayerInstalled = true;
+      REAL_STDOUT.println("[DEBUG STARTUP] F9 stop hotkey: JNativeHook GlobalScreen — OK");
     } catch (Throwable t) {
-      log("GlobalScreen F9 native hook registration notice: %s", t.getMessage());
+      REAL_STDOUT.println("[DEBUG STARTUP] F9 stop hotkey: JNativeHook GlobalScreen FAILED: " + t.getMessage());
     }
 
-    // 2. Global HotkeyManager registration
+    // Layer 2: JXGrabKey via HotkeyManager — X11 key grab, works when IDE is hidden
     try {
       HotkeyManager.getInstance().addHotkey("Abort", new HotkeyListener() {
         @Override
@@ -4621,31 +4633,42 @@ public class SikulixIDE extends JFrame {
           onStopRunning();
         }
       });
-    } catch (Throwable ignored) {}
+      anyLayerInstalled = true;
+      REAL_STDOUT.println("[DEBUG STARTUP] F9 stop hotkey: HotkeyManager/JXGrabKey — OK");
+    } catch (Throwable t) {
+      REAL_STDOUT.println("[DEBUG STARTUP] F9 stop hotkey: HotkeyManager/JXGrabKey FAILED: " + t.getMessage());
+    }
 
-    // 3. AWT Global event listener (captures F9 in any Java window)
-    Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
-      if (e instanceof KeyEvent) {
-        KeyEvent ke = (KeyEvent) e;
-        if (ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyCode() == KeyEvent.VK_F9) {
-          onStopRunning();
+    // Layer 3: AWT global event listener — works when a Java window has focus
+    try {
+      Toolkit.getDefaultToolkit().addAWTEventListener(e -> {
+        if (e instanceof KeyEvent) {
+          KeyEvent ke = (KeyEvent) e;
+          if (ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyCode() == KeyEvent.VK_F9) {
+            onStopRunning();
+          }
         }
-      }
-    }, AWTEvent.KEY_EVENT_MASK);
+      }, AWTEvent.KEY_EVENT_MASK);
+      anyLayerInstalled = true;
+    } catch (Throwable t) {
+      REAL_STDOUT.println("[DEBUG STARTUP] F9 stop hotkey: AWT EventListener FAILED: " + t.getMessage());
+    }
+
+    if (!anyLayerInstalled) {
+      REAL_STDOUT.println("[DEBUG STARTUP] WARNING: No F9 stop hotkey layer installed!");
+    }
   }
 
   void onStopRunning() {
+    REAL_STDOUT.println("[OculiX] F9 STOP: aborting all running scripts and restoring IDE");
     log("Stop key (F9) pressed: aborting all running scripts and showing IDE");
     Runner.abortAll();
+    // Interrupt the running script threads to force immediate termination
     if (btnRun != null && btnRun.runningScriptThread != null && btnRun.runningScriptThread.isAlive()) {
-      try {
-        btnRun.runningScriptThread.interrupt();
-      } catch (Exception ignored) {}
+      try { btnRun.runningScriptThread.interrupt(); } catch (Exception ignored) {}
     }
     if (btnRunSlow != null && btnRunSlow.runningScriptThread != null && btnRunSlow.runningScriptThread.isAlive()) {
-      try {
-        btnRunSlow.runningScriptThread.interrupt();
-      } catch (Exception ignored) {}
+      try { btnRunSlow.runningScriptThread.interrupt(); } catch (Exception ignored) {}
     }
     EventQueue.invokeLater(() -> {
       if (btnRecord != null && btnRecord.isRunning()) {

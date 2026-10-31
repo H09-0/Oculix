@@ -170,7 +170,10 @@ public class PreferencesUser {
 
   public int getStopHotkey() {
     int key = pref.getInt("STOP_HOTKEY", KeyEvent.VK_F9);
-    if (key == 67) { // migrate legacy default 'c' (67) to F9
+    // Migrate legacy SikuliX default VK_C (67) to F9 (120)
+    if (key == KeyEvent.VK_C) {
+      pref.putInt("STOP_HOTKEY", KeyEvent.VK_F9);
+      pref.putInt("STOP_HOTKEY_MODIFIERS", 0);
       return KeyEvent.VK_F9;
     }
     return key;
@@ -181,11 +184,7 @@ public class PreferencesUser {
   }
 
   public int getStopHotkeyModifiers() {
-    int mod = pref.getInt("STOP_HOTKEY_MODIFIERS", 0);
-    if (mod == defaultStopHotkeyModifiers()) {
-      return 0; // migrate legacy default modifiers to direct single key F9
-    }
-    return mod;
+    return pref.getInt("STOP_HOTKEY_MODIFIERS", 0);
   }
 
   private int defaultStopHotkeyModifiers() {
