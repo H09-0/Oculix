@@ -520,6 +520,14 @@ public class Finder implements Iterator<Match> {
     _results = null;
     _pattern = null;
   }
+
+  public Finder __enter__() {
+    return this;
+  }
+
+  public void __exit__(Object type, Object value, Object traceback) {
+    destroy();
+  }
 //</editor-fold>
 
   static final int PIXEL_DIFF_THRESHOLD_DEFAULT = 3;

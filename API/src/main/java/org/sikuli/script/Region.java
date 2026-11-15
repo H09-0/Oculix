@@ -3779,6 +3779,7 @@ public class Region extends Element {
 
   private <PSIC> String onEvent(PSIC targetThreshhold, Object observer, ObserveEvent.Type obsType) {
     if (observer != null && (observer.getClass().getName().contains("org.python")
+        || observer.getClass().getName().contains("org.example.jython3")
         || observer.getClass().getName().contains("org.jruby"))) {
       observer = new ObserverCallBack(observer, obsType);
     }
@@ -3941,6 +3942,17 @@ public class Region extends Element {
    */
   public boolean observe(double secs) {
     return observeDo(secs);
+  }
+
+  public boolean observe(double secs, boolean background) {
+    return background ? observeInBackground(secs) : observeInLine(secs);
+  }
+
+  public Region __enter__() {
+    return this;
+  }
+
+  public void __exit__(Object type, Object value, Object traceback) {
   }
 
   /**

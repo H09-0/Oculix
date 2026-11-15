@@ -157,6 +157,11 @@ public class Env {
     return Key.addHotkey(key, modifiers, listener);
   }
 
+  @Deprecated
+  public static boolean addHotkey(String key, int modifiers, java.util.function.Consumer<org.sikuli.basics.HotkeyEvent> handler) {
+    return Key.addHotkey(key, modifiers, handler);
+  }
+
   /**
    *
    * @param key respective key specifier according class Key
@@ -168,6 +173,11 @@ public class Env {
   @Deprecated
   public static boolean addHotkey(char key, int modifiers, HotkeyListener listener) {
     return Key.addHotkey(key, modifiers, listener);
+  }
+
+  @Deprecated
+  public static boolean addHotkey(char key, int modifiers, java.util.function.Consumer<org.sikuli.basics.HotkeyEvent> handler) {
+    return Key.addHotkey(key, modifiers, handler);
   }
 
   /**

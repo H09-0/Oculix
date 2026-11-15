@@ -283,7 +283,7 @@ public class Debug {
 
   private static boolean doSetLogger(Object logger) {
     String className = logger.getClass().getName();
-    isJython = className.contains("org.python");
+    isJython = className.contains("org.python") || className.contains("org.example.jython3");
     isJRuby = className.contains("org.jruby");
     if (isJRuby) {
       logx(3, "Debug: setLogger: given instance's class: %s", className);

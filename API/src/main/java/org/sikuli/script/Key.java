@@ -36,6 +36,15 @@ public class Key {
     return HotkeyManager.getInstance().addHotkey(key, modifiers, listener);
   }
 
+  public static boolean addHotkey(String key, int modifiers, java.util.function.Consumer<org.sikuli.basics.HotkeyEvent> handler) {
+    return HotkeyManager.getInstance().addHotkey(key, modifiers, new HotkeyListener() {
+      @Override
+      public void hotkeyPressed(org.sikuli.basics.HotkeyEvent e) {
+        if (handler != null) handler.accept(e);
+      }
+    });
+  }
+
   /**
    * add a hotkey and listener
    * @param key respective key specifier according class Key
@@ -45,6 +54,15 @@ public class Key {
    */
   public static boolean addHotkey(char key, int modifiers, HotkeyListener listener) {
     return HotkeyManager.getInstance().addHotkey(key, modifiers, listener);
+  }
+
+  public static boolean addHotkey(char key, int modifiers, java.util.function.Consumer<org.sikuli.basics.HotkeyEvent> handler) {
+    return HotkeyManager.getInstance().addHotkey(key, modifiers, new HotkeyListener() {
+      @Override
+      public void hotkeyPressed(org.sikuli.basics.HotkeyEvent e) {
+        if (handler != null) handler.accept(e);
+      }
+    });
   }
 
   /**

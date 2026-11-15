@@ -45,7 +45,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <sikulixjythonversion>2.7.4</sikulixjythonversion>
+    <jython3version>1.0.0-beta</jython3version>
     <sikulixjrubyversion>9.4.14.0</sikulixjrubyversion>
     <legerix.version>5.5.0-8</legerix.version>
   </properties>
@@ -57,9 +57,9 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.python</groupId>
-      <artifactId>jython-slim</artifactId>
-      <version>${sikulixjythonversion}</version>
+      <groupId>io.github.h09-0</groupId>
+      <artifactId>jython3</artifactId>
+      <version>${jython3version}</version>
     </dependency>
     <dependency>
       <groupId>org.jruby</groupId>
@@ -345,7 +345,7 @@
             <version>3.12.0</version>
             <configuration>
               <use>false</use>
-              <release>17</release>
+              <release>21</release>
               <doclint>none</doclint>
             </configuration>
             <executions>
@@ -368,7 +368,7 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.15.0</version>
         <configuration>
-          <release>17</release>
+          <release>21</release>
         </configuration>
       </plugin>
     </plugins>

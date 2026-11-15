@@ -213,8 +213,14 @@ public class SikulixIDE extends JFrame {
 
   //<editor-fold desc="01 startup / quit">
   private static AtomicBoolean ideIsReady = new AtomicBoolean(false);
+  private static final AtomicBoolean ideStarted = new AtomicBoolean(false);
+
+  public static boolean isIdeStarted() {
+    return ideStarted.get();
+  }
 
   protected static void start() {
+    ideStarted.set(true);
 
     ideWindowRect = getWindowRect();
 
@@ -471,6 +477,9 @@ public class SikulixIDE extends JFrame {
   }
 
   public static void showAfterStart() {
+    if (ideWindow == null && !ideIsReady.get()) {
+      return;
+    }
     while (!ideIsReady.get()) {
       Commons.pause(100);
     }
@@ -3717,9 +3726,9 @@ public class SikulixIDE extends JFrame {
     }
     String jythonJarName = "";
     try {
-      jythonJarName = getRunningJar(Class.forName("org.python.util.jython"));
+      jythonJarName = getRunningJar(Class.forName("org.example.jython3.Jython3Interpreter"));
     } catch (ClassNotFoundException e) {
-      log("makeJarWithJython: Jar containing Jython not available");
+      log("makeJarWithJython: Jar containing Jython 3 not available");
       return;
     }
     String targetJar = new File(Commons.getAppDataStore(), "sikulixjython.jar").getAbsolutePath();

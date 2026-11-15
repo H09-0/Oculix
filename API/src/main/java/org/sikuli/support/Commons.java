@@ -291,14 +291,22 @@ public class Commons {
   }
 
   public static boolean isRunningFromJar() {
-    return getMainClassLocation().getAbsolutePath().endsWith(".jar");
+    File loc = getMainClassLocation();
+    return loc != null && loc.getAbsolutePath().endsWith(".jar");
   }
 
   public static File getMainClassLocation() {
-    return getClassLocation(getStartClass());
+    Class<?> cls = getStartClass();
+    if (cls == null) {
+      cls = Commons.class;
+    }
+    return getClassLocation(cls);
   }
 
   public static File getClassLocation(Class theClass) {
+    if (theClass == null) {
+      theClass = Commons.class;
+    }
     File jarFile = null;
     String jarName = "notKnown";
     CodeSource codeSrc = theClass.getProtectionDomain().getCodeSource();
@@ -2812,7 +2820,8 @@ public class Commons {
 
   public static Object runFunctionScriptingSupport(Object reference, String function, Object[] args) {
     Class<?> classSup = null;
-    if (reference == null || (reference instanceof String && ((String) reference).contains("org.python"))) {
+    if (reference == null || (reference instanceof String && (((String) reference).contains("org.python")
+        || ((String) reference).contains("org.example.jython3")))) {
       try {
         classSup = Class.forName("org.sikuli.support.runnerSupport.JythonSupport");
       } catch (ClassNotFoundException e) {

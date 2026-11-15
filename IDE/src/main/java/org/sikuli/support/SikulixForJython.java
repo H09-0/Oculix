@@ -29,27 +29,21 @@ public class SikulixForJython {
     helper.log(lvl, "SikulixForJython: init: starting");
     String sikuliStuff = "sikuli/Sikuli";
     File fSikuliStuff = helper.existsSysPathModule(sikuliStuff);
-    String libSikuli = "/Lib/" + sikuliStuff + ".py";
-    String fpSikuliStuff;
+    String fpSikuliStuff = Commons.getLibFolder().getAbsolutePath();
     if (null == fSikuliStuff) {
-      URL uSikuliStuff = Commons.resourceLocation(libSikuli);
-      if (uSikuliStuff == null) {
-        //runTime.dumpClassPath();
-        //helper.terminate(999, "no suitable sikulix...jar on classpath");
-        throw new SikuliXception(String.format("fatal: " + "Jython: " + "no suitable sikulix...jar on classpath"));
+      if (!new File(Commons.getLibFolder(), "sikuli/Sikuli.py").exists()) {
+        throw new SikuliXception("fatal: Jython3: Lib/sikuli/Sikuli.py not available");
       }
-      fpSikuliStuff = Commons.getLibFolder().getAbsolutePath();
       if (!helper.hasSysPath(fpSikuliStuff)) {
-        helper.log(lvl, "sikuli/*.py not found on current Jython::sys.path");
+        helper.log(lvl, "sikuli/*.py not found on current Jython3::sys.path");
         helper.addSysPath(fpSikuliStuff);
         if (!helper.hasSysPath(fpSikuliStuff)) {
-          //helper.terminate(999, "not possible to add to Jython::sys.path: %s", fpSikuliStuff);
-          throw new SikuliXception(String.format("fatal: " + "Jython: " +
-                  "not possible to add to Jython::sys.path: %s", fpSikuliStuff));
+          throw new SikuliXception(String.format("fatal: " + "Jython3: " +
+                  "not possible to add to Jython3::sys.path: %s", fpSikuliStuff));
         }
-        helper.log(lvl, "added as Jython::sys.path[0]:\n%s", fpSikuliStuff);
+        helper.log(lvl, "added as Jython3::sys.path[0]:\n%s", fpSikuliStuff);
       } else {
-        helper.log(lvl, "sikuli/*.py is on Jython::sys.path at:\n%s", fpSikuliStuff);
+        helper.log(lvl, "sikuli/*.py is on Jython3::sys.path at:\n%s", fpSikuliStuff);
       }
     }
     helper.addSitePackages();

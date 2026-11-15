@@ -166,7 +166,7 @@ public class ExtensionManager {
 
   private static boolean isJythonBundled() {
       try {
-        Class.forName("org.python.util.jython");
+        Class.forName("org.example.jython3.Jython3Interpreter");
       } catch (ClassNotFoundException e) {
         return false;
       }

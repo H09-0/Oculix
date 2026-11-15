@@ -1,61 +1,44 @@
 /*
- * Copyright (c) 2010-2021, sikuli.org, sikulix.com - MIT license
+ * Copyright (c) 2010-2026, sikuli.org, sikulix.com, oculix-org - MIT license
  */
 package org.sikuli.support.runner;
 
+import org.example.jython3.runtime.InterpreterException;
+import org.example.jython3.runtime.SystemExit;
 import org.sikuli.basics.Debug;
 import org.sikuli.ide.Sikulix;
 import org.sikuli.ide.SikulixIDE;
 import org.sikuli.script.SX;
-import org.sikuli.support.runnerSupport.JythonSupport;
 import org.sikuli.support.Commons;
+import org.sikuli.support.runnerSupport.JythonSupport;
 
-import static org.sikuli.idesupport.CommandArgsEnum.*;
+import javax.swing.SwingUtilities;
 import java.io.File;
 import java.io.PrintStream;
-import java.util.Arrays;
-import javax.swing.SwingUtilities;
-import java.util.regex.Matcher;
+
+import static org.sikuli.idesupport.CommandArgsEnum.RUN;
 
 /**
- * Executes Sikuliscripts written in Python/Jython.
+ * Executes OculiX scripts written in Python 3 using Jython 3.
  */
-
 public class JythonRunner extends AbstractLocalFileScriptRunner {
 
-  //<editor-fold desc="00 standard runner stuff">
   public static final String NAME = "Jython";
   public static final String TYPE = "text/jython";
   public static final String[] EXTENSIONS = new String[]{"py"};
 
   private int lvl = 3;
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public boolean isSupported() {
-    //TODO JythonSupport to be revised (no side effects, if Jython not available): return JythonSupport.isSupported();
-    try {
-      Class.forName("org.python.util.PythonInterpreter");
-      return true;
-    } catch (ClassNotFoundException ex) {
-      Debug.log(-1, "no Jython on classpath --- consult the docs for a solution, if needed");
-      return false;
-    }
+    return JythonSupport.isSupported();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public String getName() {
     return NAME;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public String[] getExtensions() {
     return EXTENSIONS.clone();
@@ -72,18 +55,17 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
   }
 
   @Override
-  public String[] getFileEndings() {
-    String[] endings = super.getFileEndings();
-    endings = Arrays.copyOf(endings, endings.length + 1);
-    endings[endings.length - 1] = "$py.class";
-    return endings;
+  protected void doAbort() {
+    if (jythonSupport != null) {
+      jythonSupport.cancel();
+    }
+    super.doAbort();
   }
 
   @Override
   protected void doInit(String[] param) {
-    // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
-      Commons.startLog(1, "JythonRunner: starting initialization (%4.1f sec)", Commons.getSinceStart());
+      Commons.startLog(1, "JythonRunner: starting Jython 3 initialization (%4.1f sec)", Commons.getSinceStart());
 
       jythonSupport = JythonSupport.get();
       jythonSupport.getSysPath();
@@ -94,67 +76,66 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       jythonSupport.showSysPath();
       jythonSupport.interpreterExecString("import sys");
       jythonSupport.interpreterExecString("import org.sikuli.support.runner.Runner as Runner");
-      String interpreterVersion = jythonSupport.interpreterEval("sys.version.split(\"(\")[0]\n").toString();
+      Object evalVer = jythonSupport.interpreterEval("sys.version.split(\"(\")[0]");
+      String interpreterVersion = evalVer != null ? evalVer.toString().trim() : "";
       if (interpreterVersion.isEmpty()) {
-        interpreterVersion = "could not be evaluated";
+        interpreterVersion = "3.x";
       }
-      Commons.startLog(3, "Jython ready: version %s (%4.1f sec)", interpreterVersion, Commons.getSinceStart());
-      if (!Sikulix.hasArg(RUN.shortname())) {
+      Commons.startLog(3, "Jython 3 ready: version %s (%4.1f sec)", interpreterVersion, Commons.getSinceStart());
+      if (!Sikulix.hasArg(RUN.shortname()) && SikulixIDE.isIdeStarted()) {
         SwingUtilities.invokeLater(() -> SikulixIDE.showAfterStart());
       }
     }
   }
 
-  private void initAbort() {
-    jythonSupport.interpreterExecString("sx_runner_sx = Runner.getRunner(\"" + NAME + "\")\n"
-                                      + "def trace_calls_for_abort(frame, evt, arg):\n"
-                                      + "  if sx_runner_sx.isAborted():\n"
-                                      + "    raise RuntimeError(\"Aborted\")\n"
-                                      + "  return trace_calls_for_abort\n"
-                                      + "sys.settrace(trace_calls_for_abort)");
-  }
-
   static JythonSupport jythonSupport = null;
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public void doClose() {
-    jythonSupport.interpreterClose();
+    if (jythonSupport != null) {
+      jythonSupport.interpreterClose();
+    }
     redirected = false;
   }
-  //</editor-fold>
 
-  //<editor-fold desc="10 run / eval">
   @Override
   protected int doEvalScript(String script, IRunner.Options options) {
-    // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
-      initAbort();
+      if (jythonSupport == null) {
+        jythonSupport = JythonSupport.get();
+      }
       redirectToCurrentConsole();
-      jythonSupport.interpreterExecString(script);
-      return 0;
+      try {
+        jythonSupport.interpreterExecString(script);
+        return 0;
+      } catch (SystemExit se) {
+        return se.code;
+      } catch (InterpreterException ie) {
+        if (isAborted() || "KeyboardInterrupt".equals(ie.typeName())) {
+          return 0;
+        }
+        int errLine = jythonSupport.findErrorSource(ie, "<eval>");
+        if (options != null && errLine > 0) {
+          options.setErrorLine(errLine);
+        }
+        return 1;
+      }
     }
   }
 
-  /**
-   * Executes the jythonscript
-   *
-   * @param scriptFile
-   * @param argv       arguments to be populated into sys.argv
-   * @param options
-   * @return The exitcode
-   */
   @Override
   protected int doRunScript(String scriptFile, String[] argv, IRunner.Options options) {
-
-    // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
-      initAbort();
+      if (jythonSupport == null) {
+        jythonSupport = JythonSupport.get();
+      }
       redirectToCurrentConsole();
 
       File pyFile = new File(scriptFile);
+      File parentDir = pyFile.getParentFile();
+      if (parentDir != null) {
+        jythonSupport.addSysPath(parentDir);
+      }
 
       jythonSupport.interpreterFillSysArgv(pyFile, argv);
       jythonSupport.executeScriptHeader(codeBefore);
@@ -162,22 +143,17 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
       int exitCode = 0;
 
       try {
-        if (scriptFile.endsWith("$py.class")) {
-          jythonSupport.interpreterExecCode(new File(scriptFile));
-        } else {
-          jythonSupport.interpreterExecFile(pyFile.getAbsolutePath());
-        }
+        jythonSupport.interpreterExecFile(pyFile.getAbsolutePath());
+      } catch (SystemExit se) {
+        exitCode = se.code;
+        Debug.info("Exit code: " + exitCode);
       } catch (Throwable scriptException) {
-        if(!isAborted()) {
-          exitCode = 1;
-          java.util.regex.Pattern p = java.util.regex.Pattern.compile("SystemExit: (-?[0-9]+)");
-          String exception = scriptException.toString();
-
-          Matcher matcher = p.matcher(exception);
-          if (matcher.find()) {
-            exitCode = Integer.parseInt(matcher.group(1));
-            Debug.info("Exit code: " + exitCode);
+        if (!isAborted()) {
+          if (scriptException instanceof InterpreterException ie
+              && "KeyboardInterrupt".equals(ie.typeName())) {
+            exitCode = 0;
           } else {
+            exitCode = 1;
             int errorExit = jythonSupport.findErrorSource(scriptException, pyFile.getAbsolutePath());
             if (null != options) {
               options.setErrorLine(errorExit);
@@ -199,93 +175,47 @@ public class JythonRunner extends AbstractLocalFileScriptRunner {
 
   @Override
   protected void doRunLines(String lines, IRunner.Options options) {
-    // Since we have a static interpreter, we have to synchronize class wide
     synchronized (JythonRunner.class) {
-      initAbort();
+      if (jythonSupport == null) {
+        jythonSupport = JythonSupport.get();
+      }
       redirectToCurrentConsole();
       jythonSupport.executeScriptHeader(codeBefore);
 
       try {
         jythonSupport.interpreterExecString(lines);
+      } catch (SystemExit se) {
+        Debug.info("Exit code: " + se.code);
       } catch (Exception ex) {
-        if(!isAborted()) {
+        if (!isAborted()) {
           log(-1, "runPython: (%s) raised: %s", "\n" + lines, ex);
         }
       }
     }
   }
-  //</editor-fold>
 
-  //<editor-fold desc="20 redirect">
   private static boolean redirected = false;
+  private static PrintStream customStdout = null;
+  private static PrintStream customStderr = null;
 
-  /**
-   * Pipe Jython's {@code sys.stdout} / {@code sys.stderr} to the streams the
-   * IDE has already wired to its Messages pane (#272).
-   *
-   * <p>Without this, Jython captures the JVM's {@code System.out} once at
-   * interpreter construction time — which happens before
-   * {@code EditorConsolePane.initRedirect()} runs {@code System.setOut(piped)}.
-   * Result: {@code print "..."} statements write to the original terminal
-   * stdout instead of the Messages pane, while {@code Debug.on(3)} (which
-   * routes through Java's {@code System.out} at call time) lands correctly
-   * in the Messages pane. Mac surfaces this loudly because GUI apps there
-   * keep their terminal-attached stdout visible.
-   *
-   * <p>Mirrors the API-side {@code JythonRunner.doRedirect} used in CLI mode.
-   * The redirect is synchronized + idempotent because the {@code PythonInterpreter}
-   * is a process-wide singleton — we want exactly one retarget of its streams,
-   * not one per script run.
-   */
   @Override
   protected boolean doRedirect(PrintStream stdout, PrintStream stderr) {
     synchronized (JythonRunner.class) {
-      if (!redirected) {
-        redirected = true;
+      customStdout = stdout;
+      customStderr = stderr;
+      redirected = true;
+      if (jythonSupport != null) {
         return jythonSupport.interpreterRedirect(stdout, stderr);
       }
       return true;
     }
   }
 
-  /**
-   * Re-point Jython's {@code sys.stdout} / {@code sys.stderr} at the IDE's
-   * <em>current</em> {@code System.out} / {@code System.err} right before every
-   * run.
-   *
-   * <p>The one-shot startup redirect ({@code EditorConsolePane.initRedirect()} →
-   * {@code srunner.redirect(null,null)}) fires at {@code SikulixIDE} l.410, i.e.
-   * <em>before</em> the Jython interpreter exists: "IDE ready" precedes
-   * "Jython ready" by ~0.5s (see the startup log), so at redirect time
-   * {@code interpreter == null} and {@code interpreterRedirect} is a no-op.
-   * Nothing re-applied it afterwards, so {@code print} stayed bound to the JVM's
-   * original terminal stdout, while {@code Debug.on(3)} — routed through
-   * {@code System.out} at call time — correctly reached the Messages pane. That
-   * is the print/debug asymmetry reported in #272 and re-surfaced in #273.
-   *
-   * <p>Re-applying here, when both invariants hold (the interpreter exists AND
-   * {@code System.out} is the Messages-pane pipe in the IDE / the real stdout in
-   * CLI mode), guarantees {@code print} lands where the IDE is actually listening
-   * on every OS and every run — not just on the run that happens to win the
-   * warm-up race. Idempotent and cheap (two {@code setOut/setErr} calls).
-   */
   private void redirectToCurrentConsole() {
-    jythonSupport.interpreterRedirect(System.out, System.err);
+    if (jythonSupport != null) {
+      PrintStream out = customStdout != null ? customStdout : System.out;
+      PrintStream err = customStderr != null ? customStderr : System.err;
+      jythonSupport.interpreterRedirect(out, err);
+    }
   }
-  //</editor-fold>
-
-  //<editor-fold desc="99 SikuliToHtmlConverter">
-  // TODO SikuliToHtmlConverter implement in Java
-  /*
-   * final static InputStream SikuliToHtmlConverter =
-   * JythonScriptRunner.class.getResourceAsStream("/scripts/sikuli2html.py");
-   * static String pyConverter =
-   * FileManager.convertStreamToString(SikuliToHtmlConverter); private void
-   * convertSrcToHtml(String bundle) { PythonInterpreter py = new
-   * PythonInterpreter(); log(lvl, "Convert Sikuli source code " + bundle +
-   * " to HTML"); py.set("local_convert", true); py.set("sikuli_src", bundle);
-   * py.exec(pyConverter); }
-   */
-  //</editor-fold>
-
 }
