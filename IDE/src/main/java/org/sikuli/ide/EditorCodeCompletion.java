@@ -117,10 +117,13 @@ public class EditorCodeCompletion {
 
   private final EditorPane editor;
   private JWindow popupWindow;
+  private Window popupOwner;
+  private JScrollPane scrollPane;
   private JList<Item> completionList;
   private DefaultListModel<Item> listModel;
   private int prefixStartOffset = -1;
   private String currentPrefix = "";
+  private boolean justCommitted = false;
 
   public EditorCodeCompletion(EditorPane editor) {
     this.editor = editor;
@@ -134,16 +137,48 @@ public class EditorCodeCompletion {
     completionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
     completionList.setCellRenderer(new CompletionRenderer());
     completionList.setFocusable(false);
+    completionList.addMouseListener(new MouseAdapter() {
+      @Override
+      public void mouseClicked(MouseEvent e) {
+        int idx = completionList.locationToIndex(e.getPoint());
+        if (idx >= 0) {
+          completionList.setSelectedIndex(idx);
+          if (e.getClickCount() >= 1 && SwingUtilities.isLeftMouseButton(e)) {
+            Item item = completionList.getSelectedValue();
+            if (item != null) {
+              commitCompletion(item);
+              editor.requestFocusInWindow();
+            }
+          }
+        }
+      }
+    });
 
-    JScrollPane scroll = new JScrollPane(completionList);
-    scroll.setBorder(BorderFactory.createEmptyBorder());
-    scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+    scrollPane = new JScrollPane(completionList);
+    scrollPane.setBorder(BorderFactory.createEmptyBorder());
+    scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
-    popupWindow = new JWindow(SwingUtilities.getWindowAncestor(editor));
+    rebuildPopupWindow(SwingUtilities.getWindowAncestor(editor));
+  }
+
+  private void rebuildPopupWindow(Window owner) {
+    if (popupWindow != null) {
+      popupWindow.setVisible(false);
+      popupWindow.dispose();
+    }
+    popupOwner = owner;
+    popupWindow = new JWindow(owner);
     popupWindow.setFocusableWindowState(false);
     popupWindow.getContentPane().setLayout(new BorderLayout());
-    popupWindow.getContentPane().add(scroll, BorderLayout.CENTER);
-    popupWindow.setSize(340, 190);
+    popupWindow.getContentPane().add(scrollPane, BorderLayout.CENTER);
+    popupWindow.setSize(360, 195);
+  }
+
+  private void ensurePopupOwner() {
+    Window currentOwner = SwingUtilities.getWindowAncestor(editor);
+    if (currentOwner != null && currentOwner != popupOwner) {
+      rebuildPopupWindow(currentOwner);
+    }
   }
 
   private void wireListeners() {
@@ -171,6 +206,7 @@ public class EditorCodeCompletion {
           } else if (code == KeyEvent.VK_TAB || code == KeyEvent.VK_ENTER) {
             Item item = completionList.getSelectedValue();
             if (item != null) {
+              justCommitted = true;
               commitCompletion(item);
               e.consume();
               return;
@@ -191,11 +227,19 @@ public class EditorCodeCompletion {
 
       @Override
       public void keyReleased(KeyEvent e) {
+        if (justCommitted) {
+          justCommitted = false;
+          return;
+        }
         int code = e.getKeyCode();
         if (code == KeyEvent.VK_UP || code == KeyEvent.VK_DOWN ||
             code == KeyEvent.VK_TAB || code == KeyEvent.VK_ENTER ||
             code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_CONTROL ||
-            code == KeyEvent.VK_SHIFT || code == KeyEvent.VK_ALT) {
+            code == KeyEvent.VK_SHIFT || code == KeyEvent.VK_ALT ||
+            code == KeyEvent.VK_META) {
+          return;
+        }
+        if ((e.isControlDown() || e.isMetaDown()) && code != KeyEvent.VK_SPACE) {
           return;
         }
         showCompletion(false);
@@ -208,9 +252,20 @@ public class EditorCodeCompletion {
         hide();
       }
     });
+
+    editor.addHierarchyListener(e -> {
+      if (!editor.isShowing()) {
+        hide();
+      }
+    });
   }
 
   private void showCompletion(boolean force) {
+    if (!editor.isShowing()) {
+      hide();
+      return;
+    }
+    ensurePopupOwner();
     int caret = editor.getCaretPosition();
     Document doc = editor.getDocument();
     try {
@@ -234,9 +289,16 @@ public class EditorCodeCompletion {
       this.currentPrefix = prefix;
 
       listModel.clear();
-      String lower = prefix.toLowerCase();
+      String lower = prefix.toLowerCase(java.util.Locale.ROOT);
+      // Prioritize prefix matches before substring matches
       for (Item item : COMPLETION_DATABASE) {
-        if (item.name.toLowerCase().startsWith(lower) || item.name.toLowerCase().contains(lower)) {
+        if (item.name.toLowerCase(java.util.Locale.ROOT).startsWith(lower)) {
+          listModel.addElement(item);
+        }
+      }
+      for (Item item : COMPLETION_DATABASE) {
+        String itemLower = item.name.toLowerCase(java.util.Locale.ROOT);
+        if (!itemLower.startsWith(lower) && itemLower.contains(lower)) {
           listModel.addElement(item);
         }
       }
@@ -247,14 +309,28 @@ public class EditorCodeCompletion {
       }
 
       completionList.setSelectedIndex(0);
+      completionList.ensureIndexIsVisible(0);
 
-      // Positioning popup beneath caret
-      Rectangle caretRect = editor.modelToView(caret);
+      // Positioning popup beneath caret, clamped within screen bounds
+      java.awt.geom.Rectangle2D caretRect = editor.modelToView2D(caret);
       if (caretRect != null) {
-        Point pt = new Point(caretRect.x, caretRect.y + caretRect.height + 2);
+        Point pt = new Point((int) caretRect.getX(), (int) (caretRect.getY() + caretRect.getHeight() + 2));
         SwingUtilities.convertPointToScreen(pt, editor);
 
-        // Adjust theme colors
+        GraphicsConfiguration gc = editor.getGraphicsConfiguration();
+        if (gc != null) {
+          Rectangle scr = gc.getBounds();
+          Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+          int maxX = scr.x + scr.width - insets.right - popupWindow.getWidth() - 4;
+          int maxY = scr.y + scr.height - insets.bottom - popupWindow.getHeight() - 4;
+          if (pt.x > maxX) pt.x = Math.max(scr.x + insets.left, maxX);
+          if (pt.y > maxY) {
+            // Flip above caret line when near bottom of screen
+            int aboveY = pt.y - (int) caretRect.getHeight() - popupWindow.getHeight() - 4;
+            pt.y = Math.max(scr.y + insets.top, aboveY);
+          }
+        }
+
         boolean dark = !org.sikuli.basics.PreferencesUser.THEME_LIGHT.equals(
             org.sikuli.basics.PreferencesUser.get().getIdeTheme());
         Color bg = dark ? new Color(0x0C, 0x14, 0x30) : new Color(0xF3, 0xF5, 0xFA);

@@ -65,6 +65,19 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     showEmptyState();
   }
 
+  private static Font uiDefaultFont(int style, float size) {
+    Font f = UIManager.getFont("defaultFont");
+    if (f == null) f = UIManager.getFont("Label.font");
+    if (f == null) f = new Font(Font.DIALOG, Font.PLAIN, (int) size);
+    return f.deriveFont(style, size);
+  }
+
+  private static Font uiSmallFont() {
+    Font f = UIManager.getFont("small.font");
+    if (f == null) return uiDefaultFont(Font.PLAIN, 11f);
+    return f;
+  }
+
   // ── Header ──
 
   private void buildHeader() {
@@ -73,7 +86,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     header.setBorder(BorderFactory.createEmptyBorder(8, 12, 6, 12));
 
     titleLabel = new JLabel(_I("projectExplorerTitle"));
-    titleLabel.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 12f));
+    titleLabel.setFont(uiDefaultFont(Font.BOLD, 12f));
     header.add(titleLabel, BorderLayout.CENTER);
 
     add(header, BorderLayout.NORTH);
@@ -94,11 +107,23 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
     projectTree.addMouseListener(new MouseAdapter() {
       @Override
+      public void mousePressed(MouseEvent e) {
+        if (e.isPopupTrigger()) {
+          showTreeContextMenu(e);
+        }
+      }
+
+      @Override
+      public void mouseReleased(MouseEvent e) {
+        if (e.isPopupTrigger()) {
+          showTreeContextMenu(e);
+        }
+      }
+
+      @Override
       public void mouseClicked(MouseEvent e) {
         if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
           openSelectedTreeNode();
-        } else if (e.isPopupTrigger() || SwingUtilities.isRightMouseButton(e)) {
-          showTreeContextMenu(e);
         }
       }
     });
@@ -152,13 +177,13 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     emptyPanel.add(emptyIcon, "align center");
 
     JLabel emptyLabel = new JLabel(_I("projectExplorerNoProject"));
-    emptyLabel.setFont(UIManager.getFont("defaultFont").deriveFont(12f));
+    emptyLabel.setFont(uiDefaultFont(Font.PLAIN, 12f));
     emptyLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
     emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
     emptyPanel.add(emptyLabel, "align center");
 
     JButton btnOpenProject = new JButton(_I("projectExplorerOpenProject"));
-    btnOpenProject.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
+    btnOpenProject.setFont(uiDefaultFont(Font.PLAIN, 11f));
     btnOpenProject.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     btnOpenProject.addActionListener(e -> {
       org.sikuli.ide.SikulixIDE ide = org.sikuli.ide.SikulixIDE.get();
@@ -167,7 +192,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     emptyPanel.add(btnOpenProject);
 
     JButton btnNewProject = new JButton(_I("projectExplorerNewProject"));
-    btnNewProject.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
+    btnNewProject.setFont(uiDefaultFont(Font.PLAIN, 11f));
     btnNewProject.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     btnNewProject.addActionListener(e -> {
       org.sikuli.ide.SikulixIDE ide = org.sikuli.ide.SikulixIDE.get();
@@ -176,7 +201,7 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
     emptyPanel.add(btnNewProject);
 
     JButton btnNewFile = new JButton(_I("menuFileNewFile"));
-    btnNewFile.setFont(UIManager.getFont("defaultFont").deriveFont(11f));
+    btnNewFile.setFont(uiDefaultFont(Font.PLAIN, 11f));
     btnNewFile.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     btnNewFile.addActionListener(e -> {
       org.sikuli.ide.SikulixIDE ide = org.sikuli.ide.SikulixIDE.get();
@@ -620,28 +645,25 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
 
       // Script icon + name
       nameLabel = new JLabel();
-      nameLabel.setFont(UIManager.getFont("defaultFont").deriveFont(Font.BOLD, 12f));
+      nameLabel.setFont(uiDefaultFont(Font.BOLD, 12f));
       add(nameLabel, "growx");
 
       // Save status
       statusLabel = new JLabel();
-      statusLabel.setFont(UIManager.getFont("small.font"));
+      statusLabel.setFont(uiSmallFont());
       add(statusLabel, "wrap");
 
       // Details
       infoLabel = new JLabel();
-      infoLabel.setFont(UIManager.getFont("small.font"));
+      infoLabel.setFont(uiSmallFont());
       infoLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
       add(infoLabel, "span 2, growx");
 
       updateInfo(info);
 
       addMouseListener(new MouseAdapter() {
-        @Override
-        public void mouseClicked(MouseEvent e) {
-          if (e.getButton() == MouseEvent.BUTTON1 && onCardSelected != null) {
-            onCardSelected.actionPerformed(new ActionEvent(ScriptCard.this, index, "selected"));
-          } else if (e.getButton() == MouseEvent.BUTTON3) {
+        private void maybePopup(MouseEvent e) {
+          if (e.isPopupTrigger()) {
             JPopupMenu popup = new JPopupMenu();
             JMenuItem renameItem = new JMenuItem(_I("scriptExplorerCtxRename"));
             renameItem.addActionListener(ev -> {
@@ -653,6 +675,23 @@ public class ScriptExplorer extends JPanel implements org.sikuli.ide.ThemeAware 
             });
             popup.add(renameItem);
             popup.show(ScriptCard.this, e.getX(), e.getY());
+          }
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+          maybePopup(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+          maybePopup(e);
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+          if (SwingUtilities.isLeftMouseButton(e) && !e.isPopupTrigger() && onCardSelected != null) {
+            onCardSelected.actionPerformed(new ActionEvent(ScriptCard.this, index, "selected"));
           }
         }
 

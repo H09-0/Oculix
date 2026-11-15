@@ -39,7 +39,7 @@ public class LinuxHotkeyManager extends HotkeyManager {
 
   ;
 
-  private Map<Integer, HotkeyData> _idCallbackMap = new HashMap<Integer, HotkeyData>();
+  private final Map<Integer, HotkeyData> _idCallbackMap = new java.util.concurrent.ConcurrentHashMap<>();
   private int _gHotkeyId = 1;
 
   public boolean _addHotkey(int keyCode, int modifiers, HotkeyListener listener) {
@@ -81,9 +81,7 @@ public class LinuxHotkeyManager extends HotkeyManager {
   @Override
   public int _removeAll(Map<String, Integer[]> hotkeys, boolean isTerminating) {
     for (Integer[] keyMods : hotkeys.values()) {
-      if (!_removeHotkey(keyMods[0], keyMods[1])) {
-        return -1;
-      }
+      _removeHotkey(keyMods[0], keyMods[1]);
     }
     return hotkeys.size();
   }

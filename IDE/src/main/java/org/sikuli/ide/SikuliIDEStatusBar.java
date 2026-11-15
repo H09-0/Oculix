@@ -16,30 +16,37 @@ class SikuliIDEStatusBar extends JPanel {
   private JLabel _lblMsg;
   private JLabel _lblCaretPos;
   private JLabel _lblOcrStatus;
+  private JButton btnEditorMode;
   private String currentContentType = "???";
   private int currentRow;
   private int currentCol;
   private long starting;
 
+  private static Font labelFont(float size) {
+    Font f = UIManager.getFont("Label.font");
+    if (f == null) f = new Font(Font.DIALOG, Font.PLAIN, (int) size);
+    return f.deriveFont(size);
+  }
+
   public SikuliIDEStatusBar() {
-    setLayout(new MigLayout("insets 2 8 2 8, fill", "[]push[]12[]12[]", "[]"));
-    setPreferredSize(new Dimension(10, 22));
+    setLayout(new MigLayout("insets 2 8 2 8, fill", "[]push[]8[]8[]8[]8[]", "[]"));
+    setPreferredSize(new Dimension(10, 24));
 
     _lblMsg = new JLabel();
-    _lblMsg.setFont(UIManager.getFont("Label.font").deriveFont(11.0f));
+    _lblMsg.setFont(labelFont(11.0f));
 
     _lblOcrStatus = new JLabel();
-    _lblOcrStatus.setFont(UIManager.getFont("Label.font").deriveFont(11.0f));
+    _lblOcrStatus.setFont(labelFont(11.0f));
     checkOcrStatus();
 
     _lblCaretPos = new JLabel();
-    _lblCaretPos.setFont(UIManager.getFont("Label.font").deriveFont(11.0f));
+    _lblCaretPos.setFont(labelFont(11.0f));
 
     setCaretPosition(1, 1);
     resetMessage();
 
-    JButton btnEditorMode = new JButton(org.sikuli.support.ide.SikuliIDEI18N._I("editorModeF11"));
-    btnEditorMode.setFont(UIManager.getFont("Label.font").deriveFont(10.5f));
+    btnEditorMode = new JButton(org.sikuli.support.ide.SikuliIDEI18N._I("editorModeF11"));
+    btnEditorMode.setFont(labelFont(10.5f));
     btnEditorMode.setFocusable(false);
     btnEditorMode.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     btnEditorMode.addActionListener(e -> {
@@ -53,6 +60,14 @@ class SikuliIDEStatusBar extends JPanel {
     add(_lblCaretPos);
     add(new JSeparator(SwingConstants.VERTICAL), "growy");
     add(btnEditorMode);
+  }
+
+  public void refreshI18n() {
+    if (btnEditorMode != null) {
+      btnEditorMode.setText(org.sikuli.support.ide.SikuliIDEI18N._I("editorModeF11"));
+    }
+    revalidate();
+    repaint();
   }
 
   public void setType(String contentType) {

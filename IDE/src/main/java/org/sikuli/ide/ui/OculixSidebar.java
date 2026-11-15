@@ -504,6 +504,12 @@ public class OculixSidebar extends JPanel {
    * dynamically when the user changes IDE locale.
    */
   public void refreshI18n() {
+    hoverHideTimer.stop();
+    if (activeHoverSubmenu != null) {
+      activeHoverSubmenu.setVisible(false);
+      activeHoverSubmenu = null;
+      activeHoverItem = null;
+    }
     mainPanel.removeAll();
     initNavItems();
     int w = collapsed ? 64 : (org.sikuli.support.ide.SikuliIDEI18N.isRTL() ? 250 : 240);
@@ -866,7 +872,10 @@ public class OculixSidebar extends JPanel {
       }
 
       // Labels
-      g2.setFont(applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD));
+      Font pillFont = OculixFonts.currentLocaleNeedsFallback()
+          ? OculixFonts.uiBold(9)
+          : applyTracking(OculixFonts.mono(10), 0.16f).deriveFont(Font.BOLD);
+      g2.setFont(pillFont);
       FontMetrics fm = g2.getFontMetrics();
       // Pill-switch labels — uppercased for the brand kicker style even
       // when the locale's translation didn't preserve CAPS.

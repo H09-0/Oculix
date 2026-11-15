@@ -120,6 +120,9 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
     boolean changed = false;
     if (viewFont == null) {
       viewFont = UIManager.getFont("Label.font");
+      if (viewFont == null) {
+        viewFont = textFont;
+      }
       viewFont = viewFont.deriveFont(Font.PLAIN);
       changed = true;
     }
@@ -159,7 +162,9 @@ public class EditorLineNumberView extends JComponent implements MouseListener {
       int y = (sizes.getPosition(i) + sizes.getPosition(i + 1)) / 2 + textFontAscent / 2 + textTopInset / 2;
       if (errLines.contains(i + 1)) {
         final int h = 12;
-        g.drawImage(ERROR_ICON.getImage(), 0, y - h + 1, h, h, null);
+        if (ERROR_ICON != null) {
+          g.drawImage(ERROR_ICON.getImage(), 0, y - h + 1, h, h, null);
+        }
         g.setColor(Color.RED);
       } else {
         g.setColor(getForeground());

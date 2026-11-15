@@ -616,40 +616,24 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
   }
 
   @Override
-  public synchronized void run() {
+  public void run() {
     for (int i = 0; i < NUM_PIPES; i++) {
-      while (Thread.currentThread() == reader[i]) {
-        try {
-          this.wait(100);
-        } catch (InterruptedException ie) {
-        }
-
-        int availableToRead = 0;
-        try {
-          availableToRead = pin[i].available();
-        } catch (IOException e) {
-        }
-        if (availableToRead != 0) {
-          String input = null;
-          try {
-            input = this.readLine(pin[i]);
-          } catch (IOException e) {
-          }
-          if (null != input) {
-            final String finalInput = input;
+      if (Thread.currentThread() == reader[i]) {
+        final int pipeIdx = i;
+        try (java.io.BufferedReader br = new java.io.BufferedReader(
+            new java.io.InputStreamReader(pin[pipeIdx], java.nio.charset.StandardCharsets.UTF_8))) {
+          String line;
+          while (!quit && (line = br.readLine()) != null) {
+            final String finalInput = line;
             EventQueue.invokeLater(() -> {
+              if (textArea == null) return;
               synchronized (textArea) {
                 rawLines.add(finalInput);
-                // Respect the live filter : only render the new line if it
-                // matches (or no filter is active). The line still lands in
-                // rawLines so it reappears when the user clears the filter.
                 String term = filterTerm.toLowerCase(java.util.Locale.ROOT);
                 if (term.isEmpty() || finalInput.toLowerCase(java.util.Locale.ROOT).contains(term)) {
                   appendMsg(htmlize(finalInput));
                 }
                 int textLen = textArea.getDocument().getLength();
-                // Auto-scroll only when the toggle is on, so users can pause
-                // the bottom-anchor to read a stack trace that just scrolled by.
                 if (textLen > 0 && autoScroll) {
                   int textPosEnd = textLen - 1;
                   int rowStart;
@@ -663,10 +647,9 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
               }
             });
           }
+        } catch (IOException ignored) {
         }
-        if (quit) {
-          return;
-        }
+        return;
       }
     }
   }
@@ -697,12 +680,15 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     private final JTextArea terminalArea;
     private final JTextField inputField;
     private final JLabel promptLabel;
+    private final JButton stopBtn;
     private final java.util.List<String> history = new java.util.ArrayList<>();
     private int historyIndex = 0;
-    private Process activeProcess = null;
+    private volatile Process activeProcess = null;
+    private File currentDir;
 
     InteractiveTerminalPanel(int id) {
       this.id = id;
+      this.currentDir = resolveInitialWorkingDir();
       setLayout(new BorderLayout());
 
       terminalArea = new JTextArea();
@@ -711,7 +697,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       terminalArea.setMargin(new Insets(6, 8, 6, 8));
 
       terminalArea.append("OculiX Interactive Terminal #" + id + "\n");
-      terminalArea.append("Type commands below (e.g. ls, pwd, git status, python3)\n\n");
+      terminalArea.append("Type commands below (e.g. ls, pwd, cd <dir>, git status, python3)\n\n");
 
       JScrollPane scroll = new JScrollPane(terminalArea);
       scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -724,6 +710,7 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       promptLabel = new JLabel("$ ");
       promptLabel.setFont(org.sikuli.ide.theme.OculixFonts.mono(12).deriveFont(Font.BOLD));
       promptLabel.setForeground(OculixColors.OX_CYAN_500);
+      updatePromptLabel();
       inputRow.add(promptLabel, BorderLayout.LINE_START);
 
       inputField = new JTextField();
@@ -738,6 +725,9 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
             if (cmd != null && !cmd.trim().isEmpty()) {
               executeCommand(cmd.trim());
             }
+          } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_C && e.isControlDown()) {
+            stopActiveProcess();
+            e.consume();
           } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_UP) {
             if (!history.isEmpty() && historyIndex > 0) {
               historyIndex--;
@@ -755,9 +745,50 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
         }
       });
       inputRow.add(inputField, BorderLayout.CENTER);
+
+      stopBtn = new JButton("Stop");
+      stopBtn.setFocusable(false);
+      stopBtn.setEnabled(false);
+      stopBtn.setFont(org.sikuli.ide.theme.OculixFonts.ui(11));
+      stopBtn.addActionListener(e -> stopActiveProcess());
+      inputRow.add(stopBtn, BorderLayout.LINE_END);
+
       add(inputRow, BorderLayout.SOUTH);
 
       applyThemeColors(isDarkTheme());
+    }
+
+    private static File resolveInitialWorkingDir() {
+      File workingDir = null;
+      SikulixIDE ide = SikulixIDE.get();
+      if (ide != null && ide.getCurrentWorkspaceDir() != null) {
+        workingDir = ide.getCurrentWorkspaceDir();
+      }
+      if (workingDir == null || !workingDir.isDirectory()) {
+        workingDir = new File(System.getProperty("user.dir", "."));
+      }
+      return workingDir;
+    }
+
+    private void updatePromptLabel() {
+      if (promptLabel != null && currentDir != null) {
+        String name = currentDir.getName();
+        if (name.isEmpty()) name = currentDir.getAbsolutePath();
+        promptLabel.setText(name + " $ ");
+        promptLabel.setToolTipText(currentDir.getAbsolutePath());
+      }
+    }
+
+    private void stopActiveProcess() {
+      Process p = activeProcess;
+      if (p != null && p.isAlive()) {
+        p.destroyForcibly();
+        SwingUtilities.invokeLater(() -> {
+          terminalArea.append("^C\n");
+          terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+          stopBtn.setEnabled(false);
+        });
+      }
     }
 
     String getTitle() {
@@ -789,19 +820,49 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
       historyIndex = history.size();
       inputField.setText("");
 
+      if ("clear".equals(cmd) || "cls".equals(cmd)) {
+        terminalArea.setText("");
+        return;
+      }
+
       terminalArea.append("$ " + cmd + "\n");
       terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
 
-      File workingDir = null;
-      SikulixIDE ide = SikulixIDE.get();
-      if (ide != null && ide.getCurrentWorkspaceDir() != null) {
-        workingDir = ide.getCurrentWorkspaceDir();
-      }
-      if (workingDir == null || !workingDir.isDirectory()) {
-        workingDir = new File(System.getProperty("user.dir", "."));
+      // Handle persistent directory changes (`cd` / `cd <path>`)
+      if ("cd".equals(cmd) || cmd.startsWith("cd ")) {
+        String target = cmd.length() <= 2 ? System.getProperty("user.home", ".") : cmd.substring(3).trim();
+        if ((target.startsWith("\"") && target.endsWith("\"")) || (target.startsWith("'") && target.endsWith("'"))) {
+          if (target.length() >= 2) target = target.substring(1, target.length() - 1);
+        }
+        if ("~".equals(target) || target.startsWith("~/")) {
+          String home = System.getProperty("user.home", ".");
+          target = target.length() == 1 ? home : home + target.substring(1);
+        }
+        File candidate = new File(target);
+        if (!candidate.isAbsolute()) {
+          candidate = new File(currentDir, target);
+        }
+        try {
+          File resolved = candidate.getCanonicalFile();
+          if (resolved.isDirectory()) {
+            currentDir = resolved;
+            updatePromptLabel();
+          } else {
+            terminalArea.append("cd: no such directory: " + target + "\n");
+          }
+        } catch (IOException ex) {
+          terminalArea.append("cd: " + ex.getMessage() + "\n");
+        }
+        terminalArea.append("\n");
+        terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
+        return;
       }
 
-      final File finalWorkingDir = workingDir;
+      if (currentDir == null || !currentDir.isDirectory()) {
+        currentDir = resolveInitialWorkingDir();
+      }
+      final File finalWorkingDir = currentDir;
+      stopBtn.setEnabled(true);
       new Thread(() -> {
         try {
           String[] shellCmd;
@@ -813,10 +874,11 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
           ProcessBuilder pb = new ProcessBuilder(shellCmd);
           pb.directory(finalWorkingDir);
           pb.redirectErrorStream(true);
-          activeProcess = pb.start();
+          Process proc = pb.start();
+          activeProcess = proc;
 
           try (java.io.BufferedReader reader = new java.io.BufferedReader(
-              new java.io.InputStreamReader(activeProcess.getInputStream()))) {
+              new java.io.InputStreamReader(proc.getInputStream(), java.nio.charset.StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
               final String printLine = line;
@@ -826,14 +888,17 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
               });
             }
           }
-          activeProcess.waitFor();
+          proc.waitFor();
           activeProcess = null;
           SwingUtilities.invokeLater(() -> {
+            stopBtn.setEnabled(false);
             terminalArea.append("\n");
             terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
           });
         } catch (Exception ex) {
+          activeProcess = null;
           SwingUtilities.invokeLater(() -> {
+            stopBtn.setEnabled(false);
             terminalArea.append("Error: " + ex.getMessage() + "\n\n");
             terminalArea.setCaretPosition(terminalArea.getDocument().getLength());
           });
@@ -842,9 +907,11 @@ public class EditorConsolePane extends JPanel implements Runnable, ThemeAware {
     }
 
     void close() {
-      if (activeProcess != null && activeProcess.isAlive()) {
-        activeProcess.destroyForcibly();
+      Process p = activeProcess;
+      if (p != null && p.isAlive()) {
+        p.destroyForcibly();
       }
+      activeProcess = null;
     }
   }
 }

@@ -499,9 +499,16 @@ public class PreferencesWin extends JFrame {
       pref.setFontSize(_oldFont.getSize());
       codePane.setFont(_oldFont);
     }
+    if (ide != null) {
+      ide.updateEditorFonts();
+    }
 
+    Locale cur = pref.getLocale();
     pref.setLocale(_locale);
     SikuliIDEI18N.setLocale(_locale);
+    if (ide != null && _locale != null && !_locale.equals(cur)) {
+      ide.refreshAfterLocaleChange();
+    }
   }
 
   private void initFontPrefs() {
@@ -517,7 +524,8 @@ public class PreferencesWin extends JFrame {
   private void initLangPrefs() {
     String[] SUPPORT_LOCALES = {
         "it", "es", "pt_BR", "ar", "fr", "ru", "bg", "he", "sv", "ca", "ja", "tr",
-        "da", "ko", "uk", "de", "nl", "zh_CN", "en_US", "pl", "zh_TW", "ta_IN"
+        "da", "ko", "uk", "de", "nl", "zh_CN", "en_US", "pl", "zh_TW", "ta_IN",
+        "hi", "bn", "te"
     };
     Locale[] sortedLocales = new Locale[SUPPORT_LOCALES.length];
     int count = 0;
@@ -552,26 +560,30 @@ public class PreferencesWin extends JFrame {
     _cmbLang.setFont(cjkSafe);
     Locale curLocale = pref.getLocale();
     _cmbLang.setSelectedItem(curLocale);
-    if (!_cmbLang.getSelectedItem().equals(curLocale)) {
+    if (!curLocale.equals(_cmbLang.getSelectedItem())) {
       if (curLocale.getVariant().length() > 0) {
         curLocale = new Locale(curLocale.getLanguage(), curLocale.getCountry());
         _cmbLang.setSelectedItem(curLocale);
       }
-      if (!_cmbLang.getSelectedItem().equals(curLocale)) {
+      if (!curLocale.equals(_cmbLang.getSelectedItem())) {
         _cmbLang.setSelectedItem(new Locale(curLocale.getLanguage()));
       }
     }
   }
 
   private void btnMoreActionPerformed(ActionEvent e) {
+    if (winPrefMore != null && winPrefMore.isDisplayable()) {
+      winPrefMore.setVisible(true);
+      winPrefMore.toFront();
+      return;
+    }
     winPrefMore = new JFrame("Preferences: more Options ...");
     Container mpwinCP = winPrefMore.getContentPane();
     mpwinCP.setLayout(new BorderLayout());
     mpwinCP.add(new PreferencesWindowMore(), BorderLayout.CENTER);
     winPrefMore.pack();
-    winPrefMore.setAlwaysOnTop(true);
     winPrefMore.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    winPrefMore.setLocation(getLocation().x - 70, getLocation().y);
+    winPrefMore.setLocation(Math.max(0, getLocation().x - 70), getLocation().y);
     winPrefMore.setVisible(true);
   }
 
