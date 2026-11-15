@@ -110,7 +110,13 @@ public class JythonCodeGenerator implements ICodeGenerator {
 
   @Override
   public String typeText(String text, String[] modifiers) {
-    return typeKey("u\"" + text + "\"", modifiers);
+    String escaped = text == null ? "" : text
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
+    return typeKey("\"" + escaped + "\"", modifiers);
   }
 
   @Override

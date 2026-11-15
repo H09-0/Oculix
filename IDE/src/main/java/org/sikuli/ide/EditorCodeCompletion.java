@@ -52,12 +52,16 @@ public class EditorCodeCompletion {
     add("rightClick", "rightClick(\"image.png\")", "(pattern)", "Right-click visual pattern or region", "method");
     add("find", "find(\"image.png\")", "(pattern)", "Find match on screen", "method");
     add("findAll", "findAll(\"image.png\")", "(pattern)", "Find all occurrences on screen", "method");
+    add("findBest", "findBest([\"a.png\", \"b.png\"])", "(patterns)", "Find best matching pattern", "method");
+    add("findAny", "findAny([\"a.png\", \"b.png\"])", "(patterns)", "Find any matching pattern", "method");
+    add("findText", "findText(\"text\")", "(text)", "Find text on screen via OCR", "method");
     add("wait", "wait(\"image.png\", 10)", "(pattern, [timeout])", "Wait for pattern to appear", "method");
     add("waitVanish", "waitVanish(\"image.png\", 10)", "(pattern, [timeout])", "Wait for pattern to vanish", "method");
     add("exists", "exists(\"image.png\", 5)", "(pattern, [timeout])", "Check if pattern exists", "method");
     add("hover", "hover(\"image.png\")", "(pattern)", "Move mouse hover over pattern", "method");
     add("dragDrop", "dragDrop(\"source.png\", \"target.png\")", "(source, target)", "Drag from source and drop on target", "method");
     add("type", "type(\"text\")", "(text, [modifiers])", "Type keystrokes or text", "method");
+    add("write", "write(\"text\")", "(text)", "Write text with key modifiers", "method");
     add("paste", "paste(\"text\")", "(text)", "Paste string from clipboard", "method");
     add("sleep", "sleep(1)", "(seconds)", "Pause execution for N seconds", "method");
     add("wheel", "wheel(WHEEL_DOWN, 3)", "(direction, steps)", "Scroll mouse wheel", "method");

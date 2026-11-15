@@ -128,7 +128,6 @@ class LineBoxView extends BoxView {
 //<editor-fold defaultstate="collapsed" desc="Highlight">
 class SyntaxHighlightLabelView extends LabelView {
 
-  static FontMetrics _fMetrics = null;
   static String tabStr = nSpaces(PreferencesUser.get().getTabWidth());
 
   private Map<Pattern, Color> patternColors;
@@ -140,12 +139,14 @@ class SyntaxHighlightLabelView extends LabelView {
 
   //<editor-fold defaultstate="collapsed" desc="keyword lists">
   private static String[] keywordsPython = {
-    "and", "del", "for", "is", "raise",
-    "assert", "elif", "from", "lambda", "return",
-    "break", "else", "global", "not", "try",
-    "class", "except", "if", "or", "while",
-    "continue", "exec", "import", "pass", "yield",
-    "def", "finally", "in", "print", "with", "self"
+    "and", "as", "assert", "async", "await",
+    "break", "class", "continue", "def", "del",
+    "elif", "else", "except", "False", "finally",
+    "for", "from", "global", "if", "import",
+    "in", "is", "lambda", "None", "nonlocal",
+    "not", "or", "pass", "print", "raise",
+    "return", "self", "True", "try", "while",
+    "with", "yield"
   };
   private static String[] keywordsRuby = {
     "return", "break", "else", "class", "if", "nil", "begin", "end", "rescue",
@@ -244,11 +245,11 @@ class SyntaxHighlightLabelView extends LabelView {
             });
     fontParenthesis = new Font("Osaka-Mono", Font.PLAIN, 30);
 
-    // NOTE: the order is important!
-		patternColorsBasic = new HashMap<Pattern, Color>();
-    patternColorsPython = new HashMap<Pattern, Color>();
-    patternColorsRuby = new HashMap<Pattern, Color>();
-    patternColorsSikuli = new HashMap<Pattern, Color>();
+    // NOTE: order is preserved via LinkedHashMap (comments & strings first)
+    patternColorsBasic = new LinkedHashMap<Pattern, Color>();
+    patternColorsPython = new LinkedHashMap<Pattern, Color>();
+    patternColorsRuby = new LinkedHashMap<Pattern, Color>();
+    patternColorsSikuli = new LinkedHashMap<Pattern, Color>();
     patternColorsBasic.put(Pattern.compile("(#:.*$)"), new Color(220, 220, 220));
     patternColorsBasic.put(Pattern.compile("(#.*$)"), new Color(138, 140, 193));
     patternColorsBasic.put(Pattern.compile("(\"[^\"]*\"?)"), new Color(128, 0, 0));
@@ -341,11 +342,21 @@ class SyntaxHighlightLabelView extends LabelView {
     return count;
   }
 
-  private int stringWidth(String str) {
-    if (_fMetrics == null) {
-      _fMetrics = getGraphics().getFontMetrics();
+  private FontMetrics resolveFontMetrics() {
+    Container c = getContainer();
+    if (c != null) {
+      Font f = c.getFont();
+      if (f != null) {
+        return c.getFontMetrics(f);
+      }
     }
-    return _fMetrics.stringWidth(str);
+    Graphics g = getGraphics();
+    return g != null ? g.getFontMetrics() : null;
+  }
+
+  private int stringWidth(String str) {
+    FontMetrics fm = resolveFontMetrics();
+    return fm != null ? fm.stringWidth(str) : str.length() * 8;
   }
 
   private float getRealTabWidth() {
@@ -443,14 +454,12 @@ class SyntaxHighlightLabelView extends LabelView {
     SortedMap<Integer, Color> colorMap = new TreeMap<Integer, Color>();
     buildColorMaps(text, posMap, colorMap);
 
-    if (_fMetrics == null) {
-      _fMetrics = g2d.getFontMetrics();
-    }
+    FontMetrics fm = g2d.getFontMetrics();
     Rectangle alloc = (shape instanceof Rectangle)
             ? (Rectangle) shape : shape.getBounds();
 
     int sx = alloc.x;
-    int sy = alloc.y + alloc.height - _fMetrics.getDescent();
+    int sy = alloc.y + alloc.height - fm.getDescent();
     int i = 0;
 
     Color defaultTextColor = getDefaultTextColor();
@@ -548,17 +557,42 @@ class SyntaxHighlightLabelView extends LabelView {
           Map<Integer, Color> colorMap) {
     boolean dark = !PreferencesUser.THEME_LIGHT.equals(PreferencesUser.get().getIdeTheme());
 
-    // Match all regexes on this snippet, store positions
+    // Match all regexes on this snippet; resolve overlaps by earliest start index
+    // (tie-breaking by LinkedHashMap priority: comments/strings win over keywords).
     for (Map.Entry<Pattern, Color> entry : patternColors.entrySet()) {
       Matcher matcher = entry.getKey().matcher(text);
 
       while (matcher.find()) {
-        posMap.put(matcher.start(1), matcher.end());
+        int s = matcher.start(1);
+        int e = matcher.end();
+        boolean blocked = false;
+        java.util.List<Integer> toRemove = null;
+        for (Map.Entry<Integer, Integer> existing : ((TreeMap<Integer, Integer>) posMap).entrySet()) {
+          int es = existing.getKey();
+          int ee = existing.getValue();
+          if (s < ee && e > es) {
+            if (es <= s) {
+              blocked = true;
+              break;
+            } else {
+              if (toRemove == null) toRemove = new ArrayList<>();
+              toRemove.add(es);
+            }
+          }
+        }
+        if (blocked) continue;
+        if (toRemove != null) {
+          for (Integer key : toRemove) {
+            posMap.remove(key);
+            colorMap.remove(key);
+          }
+        }
+        posMap.put(s, e);
         Color c = entry.getValue();
         if (dark) {
           c = adaptColorForDark(c);
         }
-        colorMap.put(matcher.start(1), c);
+        colorMap.put(s, c);
       }
     }
   }

@@ -3,6 +3,7 @@ package org.sikuli.support.runner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.sikuli.basics.Settings;
+import org.sikuli.support.recorder.generators.JythonCodeGenerator;
 import org.sikuli.support.runnerSupport.JythonSupport;
 
 import java.io.ByteArrayOutputStream;
@@ -117,6 +118,45 @@ class Jython3IntegrationTest {
             assertEquals(0, rc);
         } finally {
             exec.shutdownNow();
+        }
+    }
+
+    @Test
+    void supportsParenthesizedImportsPep414UnicodeAndSikuliBundles(@TempDir Path tempDir) throws Exception {
+        JythonRunner runner = new JythonRunner();
+        runner.init(null);
+
+        // Create a .sikuli helper bundle next to the main script
+        Path helperBundle = tempDir.resolve("myhelper.sikuli");
+        Files.createDirectories(helperBundle);
+        Files.writeString(helperBundle.resolve("myhelper.py"), "GREETING = 'from-bundle'\n", StandardCharsets.UTF_8);
+
+        JythonCodeGenerator codeGen = new JythonCodeGenerator();
+        String generatedType = codeGen.typeText("hi \"py3\"", new String[0]);
+        assertFalse(generatedType.startsWith("type(u\""), "Should emit clean Python 3 string: " + generatedType);
+
+        ByteArrayOutputStream outBuf = new ByteArrayOutputStream();
+        PrintStream captureOut = new PrintStream(outBuf, true, StandardCharsets.UTF_8);
+        runner.redirect(captureOut, captureOut);
+
+        Path mainPy = tempDir.resolve("bundle_caller.py");
+        Files.writeString(mainPy, """
+                from sikuli import (
+                    Region,
+                    Location,
+                )
+                import myhelper
+                uval = u"pep414-ok"
+                print(f"{myhelper.GREETING}|{uval}|{Region(1,2,3,4).w}")
+                """, StandardCharsets.UTF_8);
+
+        try {
+            int rc = runner.runScript(mainPy.toAbsolutePath().toString(), new String[0], new IRunner.Options());
+            assertEquals(0, rc);
+            String out = outBuf.toString(StandardCharsets.UTF_8);
+            assertTrue(out.contains("from-bundle|pep414-ok|3"), out);
+        } finally {
+            runner.redirect(null, null);
         }
     }
 }

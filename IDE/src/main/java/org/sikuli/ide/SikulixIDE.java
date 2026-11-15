@@ -2466,9 +2466,13 @@ public class SikulixIDE extends JFrame {
   }
 
   Map<String, List<Integer>> parseforImages() {
-    File imageFolder = getActiveContext().getImageFolder();
+    PaneContext ctx = getActiveContext();
+    if (ctx == null || ctx.getPane() == null) {
+      return new HashMap<>();
+    }
+    File imageFolder = ctx.getImageFolder();
     trace("parseforImages: in %s", imageFolder);
-    String scriptText = getActiveContext().getPane().getText();
+    String scriptText = ctx.getPane().getText();
     Lexer lexer = getLexer();
     Map<String, List<Integer>> images = new HashMap<>();
     // getLexer() returns null when the syntaxhighlight grammar resource for
@@ -2640,7 +2644,9 @@ public class SikulixIDE extends JFrame {
   }
 
   String getLineTextAtCaret() {
-    return getActiveContext().getPane().getLineTextAtCaret();
+    PaneContext ctx = getActiveContext();
+    if (ctx == null || ctx.getPane() == null) return "";
+    return ctx.getPane().getLineTextAtCaret();
   }
 
   void zzzzzzz() {
@@ -3340,24 +3346,33 @@ public class SikulixIDE extends JFrame {
 
     private void performEditorAction(String action, ActionEvent ae) {
       EditorPane pane = getCurrentCodePane();
-      pane.getActionMap().get(action).actionPerformed(ae);
+      if (pane != null && pane.getActionMap().get(action) != null) {
+        pane.getActionMap().get(action).actionPerformed(ae);
+      }
     }
 
     private void selectLine() {
       EditorPane pane = getCurrentCodePane();
+      if (pane == null) return;
       Element lineAtCaret = pane.getLineAtCaret(-1);
-      pane.select(lineAtCaret.getStartOffset(), lineAtCaret.getEndOffset());
+      if (lineAtCaret != null) {
+        pane.select(lineAtCaret.getStartOffset(), lineAtCaret.getEndOffset());
+      }
     }
 
     public void doCut(ActionEvent ae) {
-      if (getCurrentCodePane().getSelectedText() == null) {
+      EditorPane pane = getCurrentCodePane();
+      if (pane == null) return;
+      if (pane.getSelectedText() == null) {
         selectLine();
       }
       performEditorAction(DefaultEditorKit.cutAction, ae);
     }
 
     public void doCopy(ActionEvent ae) {
-      if (getCurrentCodePane().getSelectedText() == null) {
+      EditorPane pane = getCurrentCodePane();
+      if (pane == null) return;
+      if (pane.getSelectedText() == null) {
         selectLine();
       }
       performEditorAction(DefaultEditorKit.copyAction, ae);
@@ -3373,12 +3388,16 @@ public class SikulixIDE extends JFrame {
 
     public void doIndent(ActionEvent ae) {
       EditorPane pane = getCurrentCodePane();
-      (new SikuliEditorKit.InsertTabAction()).actionPerformed(pane);
+      if (pane != null) {
+        (new SikuliEditorKit.InsertTabAction()).actionPerformed(pane);
+      }
     }
 
     public void doUnindent(ActionEvent ae) {
       EditorPane pane = getCurrentCodePane();
-      (new SikuliEditorKit.DeindentAction()).actionPerformed(pane);
+      if (pane != null) {
+        (new SikuliEditorKit.DeindentAction()).actionPerformed(pane);
+      }
     }
   }
 
